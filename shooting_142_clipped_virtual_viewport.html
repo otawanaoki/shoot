@@ -1,0 +1,4133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Formation Shooter Demo 142 Clipped Virtual Viewport</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #05070d;
+      color: white;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #game {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 25%, #111827 0%, #05070d 55%, #02030a 100%);
+    }
+
+    #hint {
+      display: none;
+    }
+
+    #fullscreenTopButton {
+      position: fixed;
+      right: 86px;
+      top: 10px;
+      z-index: 20;
+      border: 1px solid rgba(125,211,252,0.55);
+      background: rgba(15,23,42,0.72);
+      color: #dff7ff;
+      border-radius: 10px;
+      padding: 7px 10px;
+      font: 700 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      backdrop-filter: blur(6px);
+    }
+
+    #settingsToggle {
+      position: fixed;
+      right: 10px;
+      top: 10px;
+      z-index: 20;
+      border: 1px solid rgba(125,211,252,0.55);
+      background: rgba(15,23,42,0.72);
+      color: #dff7ff;
+      border-radius: 10px;
+      padding: 7px 10px;
+      font: 700 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      backdrop-filter: blur(6px);
+    }
+
+    #settingsPanel {
+      position: fixed;
+      right: 10px;
+      top: 48px;
+      width: min(340px, calc(100vw - 20px));
+      max-height: calc(100vh - 70px);
+      overflow: auto;
+      z-index: 21;
+      display: none;
+      border: 1px solid rgba(125,211,252,0.42);
+      border-radius: 14px;
+      background: rgba(2,6,23,0.88);
+      color: #e5f7ff;
+      padding: 12px;
+      box-shadow: 0 18px 48px rgba(0,0,0,0.35);
+      backdrop-filter: blur(8px);
+      font: 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #settingsPanel.open {
+      display: block;
+    }
+
+    #settingsPanel h3 {
+      margin: 4px 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      color: #a5f3fc;
+    }
+
+    #settingsPanel .group {
+      margin: 10px 0 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148,163,184,0.20);
+    }
+
+    #settingsPanel label {
+      display: grid;
+      grid-template-columns: 1fr 58px;
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0 4px;
+      color: rgba(226,232,240,0.92);
+    }
+
+    #settingsPanel input[type="range"] {
+      width: 100%;
+      grid-column: 1 / 3;
+    }
+
+    #settingsPanel button {
+      border: 1px solid rgba(251,191,36,0.55);
+      background: rgba(120,53,15,0.65);
+      color: #fff7ed;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+
+    #settingsPanel .note {
+      color: rgba(203,213,225,0.72);
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hint"></div>
+  <button id="fullscreenTopButton" type="button">FULL</button>
+  <button id="settingsToggle" type="button">SET</button>
+  <div id="settingsPanel" aria-label="settings panel">
+    <h3>UNIVERSE TUNING</h3>
+
+    <div class="group">
+      <strong>CONTROL</strong>
+      <label>推力 / Accel <span data-val="accel"></span><input data-setting="accel" type="range" min="0.20" max="0.70" step="0.01"></label>
+      <label>最高速 / Max speed <span data-val="maxSpeed"></span><input data-setting="maxSpeed" type="range" min="3.5" max="8.0" step="0.1"></label>
+      <label>慣性 / Friction <span data-val="friction"></span><input data-setting="friction" type="range" min="0.930" max="0.990" step="0.001"></label>
+      <label>スマホ感度 <span data-val="mobileAccelBoost"></span><input data-setting="mobileAccelBoost" type="range" min="0.70" max="1.60" step="0.01"></label>
+      <label>スマホ最高速倍率 <span data-val="mobileMaxSpeedScale"></span><input data-setting="mobileMaxSpeedScale" type="range" min="0.70" max="1.25" step="0.01"></label>
+    </div>
+
+    <div class="group">
+      <strong>CAMERA</strong>
+      <label>PC最大ズーム <span data-val="maxZoomPC"></span><input data-setting="maxZoomPC" type="range" min="1.00" max="1.70" step="0.01"></label>
+      <label>スマホ最大ズーム <span data-val="maxZoomMobile"></span><input data-setting="maxZoomMobile" type="range" min="0.70" max="1.30" step="0.01"></label>
+      <label>ズーム追随 <span data-val="zoomFollow"></span><input data-setting="zoomFollow" type="range" min="0.005" max="0.080" step="0.001"></label>
+    </div>
+
+    <div class="group">
+      <strong>BATTLE</strong>
+      <label>スクランブル閾値 <span data-val="scrambleThreshold"></span><input data-setting="scrambleThreshold" type="range" min="2" max="10" step="1"></label>
+      <label>紫横展開幅 <span data-val="purpleSpread"></span><input data-setting="purpleSpread" type="range" min="0.60" max="1.20" step="0.01"></label>
+    </div>
+
+    <button id="settingsDefault" type="button">DEFAULT</button>
+    <button id="settingsClose" type="button">CLOSE</button>
+    <div class="note">調整は即時反映。DEFAULTで初期値へ戻せます。</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const DEFAULT_SETTINGS = {
+      accel: 0.42,
+      maxSpeed: 6.0,
+      friction: 0.966,
+      mobileAccelBoost: 1.05,
+      mobileMaxSpeedScale: 0.92,
+      maxZoomPC: 1.55,
+      maxZoomMobile: 1.00,
+      zoomFollow: 0.050,
+      scrambleThreshold: 5,
+      purpleSpread: 0.95
+    };
+
+    const SETTINGS = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+
+    function applySettingsToGame() {
+      if (typeof MOVE !== 'undefined') {
+        MOVE.accel = SETTINGS.accel;
+        MOVE.maxSpeed = SETTINGS.maxSpeed;
+        MOVE.friction = SETTINGS.friction;
+      }
+      if (typeof mobileStick !== 'undefined') {
+        mobileStick.accelBoost = SETTINGS.mobileAccelBoost;
+      }
+      if (typeof SCRAMBLE !== 'undefined') {
+        SCRAMBLE.threshold = SETTINGS.scrambleThreshold;
+      }
+    }
+
+    function syncSettingsPanel() {
+      document.querySelectorAll('[data-setting]').forEach(input => {
+        const key = input.dataset.setting;
+        input.value = SETTINGS[key];
+      });
+      document.querySelectorAll('[data-val]').forEach(span => {
+        const key = span.dataset.val;
+        const value = SETTINGS[key];
+        span.textContent = Number.isInteger(value) ? String(value) : Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+      });
+    }
+
+    function resetSettings() {
+      Object.assign(SETTINGS, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+      applySettingsToGame();
+      syncSettingsPanel();
+    }
+
+    function initSettingsPanel() {
+      const toggle = document.getElementById('settingsToggle');
+      const panel = document.getElementById('settingsPanel');
+      const fullscreenBtn = document.getElementById('fullscreenTopButton');
+      const close = document.getElementById('settingsClose');
+      const def = document.getElementById('settingsDefault');
+
+      toggle.addEventListener('click', () => {
+        panel.classList.toggle('open');
+      });
+
+      fullscreenBtn.addEventListener('click', requestGameFullscreen);
+      close.addEventListener('click', () => panel.classList.remove('open'));
+      def.addEventListener('click', resetSettings);
+
+      document.querySelectorAll('[data-setting]').forEach(input => {
+        input.addEventListener('input', () => {
+          const key = input.dataset.setting;
+          const raw = Number(input.value);
+          SETTINGS[key] = key === 'scrambleThreshold' ? Math.round(raw) : raw;
+          applySettingsToGame();
+          syncSettingsPanel();
+        });
+      });
+
+      applySettingsToGame();
+      syncSettingsPanel();
+    }
+
+    // 実画面サイズと、ゲーム内部の仮想表示サイズを分離する。
+    // PCは 1600x900、スマホ縦は 540x900 を基準にする。
+    // これにより、巨大・縦長モニタでも射程や遭遇距離が破綻しにくくなる。
+    let W = 0, H = 0, DPR = 1;              // 仮想ゲーム画面サイズ
+    let SCREEN_W = 0, SCREEN_H = 0;         // 実画面CSSピクセル
+    let renderScale = 1;
+    let renderOffsetX = 0;
+    let renderOffsetY = 0;
+
+    let battleH = 0, panelH = 0;
+    const PANEL_RATIO = 0.20;
+    const MOBILE_PANEL_RATIO = 0.24;
+    const VIEW_PC = { w: 1600, h: 900 };
+    const VIEW_MOBILE = { w: 540, h: 900 };
+
+    function isTouchLayout() {
+      return window.innerWidth < 760 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    }
+
+    function currentPanelRatio() {
+      // PCでは下部SHOT/BOMB/BOOSTパネルを出さず、全体を戦闘画面にする。
+      // スマホでは従来どおり下部操作エリアを残す。
+      return isTouchLayout() ? MOBILE_PANEL_RATIO : 0;
+    }
+
+    function applyCanvasTransform() {
+      ctx.setTransform(
+        DPR * renderScale, 0,
+        0, DPR * renderScale,
+        DPR * renderOffsetX, DPR * renderOffsetY
+      );
+    }
+
+    function resetScreenTransform() {
+      applyCanvasTransform();
+    }
+
+    function screenToGame(x, y) {
+      return {
+        x: (x - renderOffsetX) / renderScale,
+        y: (y - renderOffsetY) / renderScale
+      };
+    }
+
+    function maxAutoZoom() {
+      return isTouchLayout() ? SETTINGS.maxZoomMobile : SETTINGS.maxZoomPC;
+    }
+
+    function resize() {
+      DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      SCREEN_W = window.innerWidth;
+      SCREEN_H = window.innerHeight;
+
+      const view = isTouchLayout() ? VIEW_MOBILE : VIEW_PC;
+      W = view.w;
+      H = view.h;
+
+      const ratio = currentPanelRatio();
+      battleH = H * (1 - ratio);
+      panelH = H * ratio;
+
+      canvas.width = Math.floor(SCREEN_W * DPR);
+      canvas.height = Math.floor(SCREEN_H * DPR);
+      canvas.style.width = SCREEN_W + 'px';
+      canvas.style.height = SCREEN_H + 'px';
+
+      // 仮想画面を実画面に収める。余った部分はレターボックス。
+      renderScale = Math.min(SCREEN_W / W, SCREEN_H / H);
+      renderOffsetX = (SCREEN_W - W * renderScale) / 2;
+      renderOffsetY = (SCREEN_H - H * renderScale) / 2;
+
+      applyCanvasTransform();
+      layoutButtons();
+    }
+    window.addEventListener('resize', resize);
+
+    const player = {
+      x: 0, y: 0,
+      vx: 0, vy: 0,          // 世界移動用の速度
+      displayOffsetX: 0,
+      displayOffsetY: 0,
+      targetX: 0, targetY: 0,
+      r: 11,
+      shotCooldown: 0,
+      bombCooldown: 0,
+      boostCooldown: 0,
+      boosting: 0,
+      bumpCooldown: 0,
+      bumpInvul: 0,
+      bumpFlash: 0
+    };
+
+    const moveInput = {
+      mode: 'dragworld', // 'dragworld' / 'tap' / 'vector'
+      active: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+      dx: 0,
+      dy: 0,
+      power: 0,
+      targetX: 0,
+      targetY: 0
+    };
+
+    const MOVE = {
+      dragSensitivity: 0.045,
+      friction: 0.966,
+      activeFriction: 0.982,
+      accel: 0.42,
+      maxSpeed: 6.0,
+      inputRadius: 92,
+      deadZone: 10,
+      shipLag: 0.20,
+      maxShipOffset: 30
+    };
+
+    // 近接戦闘時の姿勢制御。
+    // 敵弾・敵機が近いときだけ慣性を弱め、小回りを利きやすくする。
+    const STABILIZER = {
+      enabled: true,
+      bulletRadius: 86,
+      enemyRadius: 115,
+      maxDanger: 1.0,
+      extraDamping: 0.10
+    };
+
+    // 爆弾の慣性投擲。
+    // 後退しながら投げたとき、自機近くに一瞬だけ留まってから前方へ流れる。
+    const BOMB_PHYSICS = {
+      holdFrames: 26,
+      inheritedVelocityScale: 0.55,
+      forwardVy: -2.15
+    };
+
+    // 眠っている／隊列待機中の敵に接触したときの「ぽよーん」反発。
+    // 即死ではなく、短時間だけ弾への事故を防ぐ無敵を付ける。
+    const DORMANT_BUMP = {
+      radiusPadding: 10,
+      impulse: 7.8,
+      bounce: 1.15,
+      minBounceSpeed: 4.8,
+      pushOutPadding: 4,
+      maxPushOut: 22,
+      cooldown: 18,
+      invul: 18,
+      enemyKick: 12,
+      wakeRadius: 72
+    };
+
+    // 爆弾・ブラスターが眠り編隊を刺激する半径。
+    // 爆風中心では撃破、外縁では起床という挙動にする。
+    const WAKEUP_WEAPONS = {
+      blasterRadius: 76,
+      bombWakeExtra: 105
+    };
+
+
+    const SCRAMBLE = {
+      threshold: 5,
+      escapeChance: 0.18,
+      maxSimultaneousDivers: 3,
+      rediveMax: 2,
+      speedBonus: 1.12
+    };
+
+    const RETURN_TUNING = {
+      upperFormationMargin: 120,
+      visibleReturnFrames: 118,
+      quietReturnFrames: 150
+    };
+
+    const gamepadState = {
+      name: '',
+      active: false,
+      dx: 0,
+      dy: 0,
+      power: 0,
+      prevButtons: []
+    };
+
+    const GAMEPAD = {
+      deadZone: 0.22,
+      digitalPower: 0.72,
+      accel: 0.46,
+      // Xbox標準：
+      // A = 0, B = 1, X = 2
+      // 操作割当：A=SHOT / X=BOMB / B=BOOST
+      shotButton: 0,
+      bombButton: 2,
+      boostButton: 1,
+      modeButton: 8,
+      leftTrigger: 6,
+      rightTrigger: 7
+    };
+
+    // PC/コントローラー向け手動ズーム。
+    // LTで引く、RTで寄る。危険時は最低1.0倍まで戻すが、
+    // プレイヤーが1.0倍以上に手動設定している場合はその倍率を尊重する。
+    const MANUAL_ZOOM = {
+      min: 0.30,
+      max: 1.55,
+      speed: 0.028,
+      triggerDead: 0.08,
+      combatMinimum: 1.00,
+      releaseBlend: 0.020,
+      activeHoldFrames: 36
+    };
+
+    const manualZoomState = {
+      value: null,
+      active: false,
+      hold: 0,
+      left: 0,
+      right: 0
+    };
+
+    let starOffsetX = 0;
+    let starOffsetY = 0;
+
+    // 航法メッシュはワールド座標ベース。
+    // 実際に動いた分だけ目盛りが動き、ズームに応じて粗密が変わる。
+    const NAV_GRID = 160;
+    const NAV_MAJOR_EVERY = 4;
+
+    function playerBaseX() { return W / 2; }
+    function playerBaseY() {
+      // PCは操作パネルを消したぶん、自機をさらに画面下へ置く。
+      // スマホは下部UIとの干渉を避けるため従来位置。
+      return isTouchLayout() ? battleH * 0.78 : battleH * 0.86;
+    }
+
+    function shiftWorld(dx, dy) {
+      enemies.forEach(e => {
+        e.x += dx; e.y += dy;
+        e.homeX += dx; e.homeY += dy;
+        if (e.diveStartX !== undefined) e.diveStartX += dx;
+        if (e.diveStartY !== undefined) e.diveStartY += dy;
+        if (e.diveControlX !== undefined) e.diveControlX += dx;
+        if (e.diveControlY !== undefined) e.diveControlY += dy;
+        if (e.diveAimX !== undefined) e.diveAimX += dx;
+        if (e.diveAimY !== undefined) e.diveAimY += dy;
+        if (e.diveTargetX !== undefined) e.diveTargetX += dx;
+        if (e.diveTargetY !== undefined) e.diveTargetY += dy;
+        if (e.returnFromX !== undefined) e.returnFromX += dx;
+        if (e.returnFromY !== undefined) e.returnFromY += dy;
+      });
+      bullets.forEach(o => { o.x += dx; o.y += dy; });
+      enemyBullets.forEach(o => { o.x += dx; o.y += dy; });
+      bombs.forEach(o => { o.x += dx; o.y += dy; });
+      explosions.forEach(o => { o.x += dx; o.y += dy; });
+      particles.forEach(o => { o.x += dx; o.y += dy; });
+
+      // メテオ警告線も実座標上の投影なので、世界移動に追随させる。
+      meteorWarnings.forEach(w => {
+        w.x1 += dx; w.y1 += dy;
+        w.x2 += dx; w.y2 += dy;
+      });
+
+      // 遠方編隊もプレイヤー相対の位置として動かす。
+      // 自機を基準に世界をずらしているので、同じだけ平行移動する。
+      squadrons.forEach(s => {
+        s.x += dx;
+        s.y += dy;
+      });
+
+      starOffsetX += dx;
+      starOffsetY += dy;
+    }
+
+    const buttons = [];
+    function layoutButtons() {
+      buttons.length = 0;
+      if (!isTouchLayout()) return;
+
+      const labels = ['BOMB', 'SHOT', 'BOOST'];
+      const gap = 10;
+      const bh = Math.min(58, panelH * 0.48);
+      const y = battleH + panelH * 0.36;
+
+      // スマホ：左側は仮想スティック用に空け、右側に3ボタンを並べる。
+      const startX = W * 0.45;
+      const bw = (W - startX - gap * 4) / 3;
+      for (let i = 0; i < 3; i++) {
+        buttons.push({
+          label: labels[i],
+          x: startX + gap + i * (bw + gap),
+          y,
+          w: bw,
+          h: bh,
+          down: false
+        });
+      }
+
+      // FULLボタンは上部UIへ移動。
+    }
+
+    const bullets = [];
+    const enemyBullets = [];
+    const bombs = [];
+    const explosions = [];
+    const enemies = [];
+    const particles = [];
+    const meteorWarnings = [];
+
+    // 宙域内の遠方編隊。
+    // 実体の敵機としては生成せず、プレイヤーからの相対位置だけを持つ。
+    // 近づいたときだけ spawnSquadron() で実体化する。
+    const squadrons = [];
+    let squadronSeq = 1;
+
+    let time = 0;
+    let cameraScale = isTouchLayout() ? 0.92 : 1.20;
+    let targetScale = isTouchLayout() ? 0.92 : 1.20;
+    const ENEMY_VISUAL_SCALE = 1.5; // 見た目だけ拡大。実当たり判定は r=9 で、見た目より少し小さめ。
+    const ZOOM_LEVELS = [0.3, 0.7, 1.0, 1.25, 1.5];
+    let zoomIndex = 1;
+    let autoZoom = true;
+    let score = 0;
+
+    // Dramatic Camera:
+    // 最初はしれっとクラシックな単一編隊戦として始め、
+    // 戦闘が動いたら寄り、静まったら中角〜広角で宙域の広がりを見せる。
+    const CAMERA_DRAMA = {
+      introClassicFrames: 1800,
+      introNoDiveFrames: 600,
+      universeRevealStart: 1800,
+      universeRevealEnd: 2280,
+      revealBlipsAfter: 1800,
+      introMinZoomPC: 0.92,
+      introMinZoomMobile: 0.86,
+
+      // このゲームの基本は「弾幕をくぐる戦闘級カメラ」。
+      // 広域宙域は、戦闘が切れたときだけ少し見える程度にする。
+      battleZoomPC: 1.38,
+      battleZoomMobile: 1.14,
+      duelZoomPC: 1.18,
+      duelZoomMobile: 1.04,
+      midZoomPC: 0.72,
+      midZoomMobile: 0.68,
+      cruiseZoomPC: 0.44,
+      cruiseZoomMobile: 0.48,
+
+      // 「危ない/撃っている/敵が動いている」とみなす範囲を広めに取る。
+      // これにより、戦闘が始まった瞬間に豆粒視点から戻る。
+      bulletNearRadius: 560,
+      diverNearRadius: 680,
+      closeCombatRadius: 420,
+      combatHoldFrames: 180,
+      calmEnemyBulletLimit: 0
+    };
+
+    let lastBattleMotionTime = -99999;
+
+    function smoothstep01(x) {
+      x = Math.max(0, Math.min(1, x));
+      return x * x * (3 - 2 * x);
+    }
+
+    function getUniverseReveal() {
+      const start = CAMERA_DRAMA.universeRevealStart;
+      const end = CAMERA_DRAMA.universeRevealEnd;
+      if (time <= start) return 0;
+      if (time >= end) return 1;
+      return smoothstep01((time - start) / Math.max(1, end - start));
+    }
+
+    function applyIntroZoomOutSuppression(baseZoom) {
+      // 最初の30秒は「普通のギャラクシアン」に見えるよう、
+      // 大きくズームアウトすることだけを抑制する。
+      // 30〜38秒で制限をなめらかに外し、38秒後は完全に通常カメラへ戻す。
+      const reveal = getUniverseReveal();
+
+      // ここが重要。
+      // reveal が 1 になった後も Math.max(baseZoom, 0.30) をかけ続けると、
+      // 目標倍率や不感帯の影響で、実質的にズーム下限が残って見える。
+      // 宇宙開示後は制限そのものを完全に外す。
+      if (reveal >= 0.999) return baseZoom;
+
+      const introMin = isTouchLayout() ? CAMERA_DRAMA.introMinZoomMobile : CAMERA_DRAMA.introMinZoomPC;
+      const normalMin = 0.30;
+      const minZoom = introMin * (1 - reveal) + normalMin * reveal;
+      return Math.max(baseZoom, minZoom);
+    }
+
+    function aliveEnemies() {
+      return enemies.filter(e => e.state !== 'gone');
+    }
+
+    function countActiveSquadronsForCamera() {
+      let active = 0;
+      let sleeping = 0;
+      let visible = 0;
+      for (const s of squadrons) {
+        if (s.cleared || s.state === SQUADRON_STATE.CLEARED) continue;
+        if (s.visible) visible++;
+        if (s.state === SQUADRON_STATE.ACTIVE) active++;
+        if (s.state === SQUADRON_STATE.SLEEPING) sleeping++;
+      }
+      return { active, sleeping, visible };
+    }
+
+    function cameraEnemyDrawScale() {
+      // カメラを引いたときだけ敵の見た目を少し持ち上げる。
+      // 当たり判定は変えず、「広い宙域なのに豆粒すぎる」を避ける。
+      const inverseBoost = Math.max(1, Math.min(2.25, 0.86 / Math.max(cameraScale, 0.25)));
+      return ENEMY_VISUAL_SCALE * inverseBoost;
+    }
+
+    function cycleZoom() {
+      // Zキー：自動ズームON/OFF。OFF時は 0.3 / 0.7 / 1.0 / 1.25 / 1.5 を手動切替。
+      if (autoZoom) {
+        autoZoom = false;
+        zoomIndex = 1;
+      } else {
+        zoomIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
+        if (zoomIndex === 0) autoZoom = true;
+      }
+      targetScale = autoZoom ? computeAutoZoom() : ZOOM_LEVELS[zoomIndex];
+    }
+
+    function zoomPulse(scale) {
+      targetScale = Math.max(targetScale, scale);
+    }
+
+    function computeAutoZoom() {
+      const alive = aliveEnemies();
+      if (alive.length === 0) return isTouchLayout() ? CAMERA_DRAMA.cruiseZoomMobile : CAMERA_DRAMA.cruiseZoomPC;
+
+      const introClassic = time < CAMERA_DRAMA.introClassicFrames;
+      const camCounts = countActiveSquadronsForCamera();
+
+      let nearest = Infinity;
+      let nearby = 0;
+      let nearestDiver = Infinity;
+      let nearestActiveFormation = Infinity;
+      let nearestSleepingFormation = Infinity;
+      const formationEnemies = [];
+      const centerX = player.x;
+      const centerY = player.y;
+
+      for (const e of alive) {
+        const d = Math.hypot(e.x - centerX, e.y - centerY);
+        if (d < nearest) nearest = d;
+        if (d < 260) nearby++;
+
+        if (e.state === 'dive') {
+          if (d < nearestDiver) nearestDiver = d;
+        }
+
+        if (e.state === 'active') {
+          if (d < nearestActiveFormation) nearestActiveFormation = d;
+          formationEnemies.push(e);
+        } else if (e.state === 'sleep') {
+          if (d < nearestSleepingFormation) nearestSleepingFormation = d;
+          formationEnemies.push(e);
+        }
+      }
+
+      let enemyBulletNear = false;
+      for (const b of enemyBullets) {
+        const d = Math.hypot(b.x - player.x, b.y - player.y);
+        if (d < CAMERA_DRAMA.bulletNearRadius) {
+          enemyBulletNear = true;
+          break;
+        }
+      }
+
+      // 「戦闘が動いている」条件。
+      // こちらが撃っている、敵弾がある、突撃している、敵機が近い。
+      // このときは、豆粒バトルを避けてすばやく戦闘ズームへ戻す。
+      const playerFiring = bullets.length > 0 || bombs.length > 0 || player.shotCooldown > 0;
+      const enemyFire = enemyBullets.length > CAMERA_DRAMA.calmEnemyBulletLimit || enemyBulletNear;
+      const diverNear = nearestDiver < CAMERA_DRAMA.diverNearRadius;
+      const closeCombat = nearby >= 1 || nearest < CAMERA_DRAMA.closeCombatRadius;
+      const battleMotion = playerFiring || enemyFire || diverNear || closeCombat;
+      if (battleMotion) lastBattleMotionTime = time;
+      const recentBattle = time - lastBattleMotionTime < CAMERA_DRAMA.combatHoldFrames;
+
+      const battleZoom = isTouchLayout() ? CAMERA_DRAMA.battleZoomMobile : CAMERA_DRAMA.battleZoomPC;
+      const duelZoom = isTouchLayout() ? CAMERA_DRAMA.duelZoomMobile : CAMERA_DRAMA.duelZoomPC;
+      const midZoom = isTouchLayout() ? CAMERA_DRAMA.midZoomMobile : CAMERA_DRAMA.midZoomPC;
+      const cruiseZoom = isTouchLayout() ? CAMERA_DRAMA.cruiseZoomMobile : CAMERA_DRAMA.cruiseZoomPC;
+
+      let desired;
+
+      if (introClassic) {
+        // 序盤は、あえて昔のギャラクシアンのように「単一編隊ゲーム」に見せる。
+        desired = Math.max(duelZoom, Math.min(battleZoom, computeFormationFitZoom(formationEnemies)));
+      } else if (battleMotion || recentBattle) {
+        // 戦闘が始まったら、すぐに「避けて撃つ」視点へ戻す。
+        // 弾や突撃が一瞬途切れても少し保持し、カメラがすぐ引かないようにする。
+        desired = battleMotion ? battleZoom : duelZoom;
+        if (!enemyFire && !diverNear && nearestActiveFormation > 520 && !playerFiring) desired = duelZoom;
+      } else if (camCounts.active >= 2) {
+        // 2編隊が起きているが、弾や突撃が少ない瞬間。
+        // ここで少し引いて「広い宙域の戦線」を見せる。
+        desired = midZoom;
+      } else if (camCounts.active === 1 && (camCounts.sleeping > 0 || camCounts.visible > 1)) {
+        desired = Math.max(midZoom, cruiseZoom + 0.08);
+      } else if (nearestSleepingFormation < 1900 || camCounts.visible > 0) {
+        desired = cruiseZoom + 0.04;
+      } else {
+        desired = cruiseZoom;
+      }
+
+      // 隊列が半分切れそうなときは少しだけ引く。
+      // ただし戦闘中は「見やすさ」を優先して、引きすぎない。
+      if (formationEnemies.length >= 3) {
+        const fitZoom = computeFormationFitZoom(formationEnemies);
+        if (battleMotion) {
+          // 実戦中は「隊列全体を収める」計算でズームアップを殺さない。
+          // 以前は fitZoom + 0.10 が 1.15 前後になると、PCでもそこで頭打ちになっていた。
+          // 弾避け・接近戦では、豆粒バトル回避を優先して battleZoom をそのまま使う。
+          desired = Math.max(desired, battleZoom);
+        } else if (recentBattle) {
+          // 戦闘直後の余韻では、少しだけ隊列フィットを考慮する。
+          // ただし 1.15 付近で固定されないよう、PCは duelZoom 以上を下限にする。
+          const combatFloor = isTouchLayout() ? 0.98 : duelZoom;
+          const softCap = Math.max(combatFloor, Math.min(battleZoom, fitZoom + 0.18));
+          desired = Math.min(desired, softCap);
+        } else {
+          desired = Math.min(desired, Math.max(0.30, Math.min(1.00, fitZoom)));
+        }
+      }
+
+      return Math.max(0.30, Math.min(maxAutoZoom(), desired));
+    }
+
+    function computeFormationFitZoom(list) {
+      // プレイヤー位置を中心にズームしたとき、隊列全体が戦闘エリアに入る最大ズーム率。
+      // ギャラクシアン的な「隊列の見え」を優先し、特に隊列上端に余白を残す。
+      let maxZoom = 1.50;
+      const visualR = 15;      // 敵の見た目半径に近い安全幅
+      const sideMargin = 28;
+      const topMargin = 58;    // 隊列上端は画面上から少し余裕を取る
+      const bottomMargin = 42;
+      const px = player.x;
+      const py = player.y;
+      const left = sideMargin;
+      const right = W - sideMargin;
+      const top = topMargin;
+      const bottom = battleH - bottomMargin;
+
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+      for (const e of list) {
+        const exLeft = e.x - visualR;
+        const exRight = e.x + visualR;
+        const eyTop = e.y - visualR;
+        const eyBottom = e.y + visualR;
+        minY = Math.min(minY, eyTop);
+        maxY = Math.max(maxY, eyBottom);
+
+        const dxRight = exRight - px;
+        const dxLeft = exLeft - px;
+        const dyBottom = eyBottom - py;
+        const dyTop = eyTop - py;
+
+        if (dxRight > 0) maxZoom = Math.min(maxZoom, (right - px) / dxRight);
+        if (dxLeft < 0) maxZoom = Math.min(maxZoom, (px - left) / -dxLeft);
+        if (dyBottom > 0) maxZoom = Math.min(maxZoom, (bottom - py) / dyBottom);
+        if (dyTop < 0) maxZoom = Math.min(maxZoom, (py - top) / -dyTop);
+      }
+
+      // 隊列上端が画面上から少しだけ余白を取る位置に来ることを強く優先。
+      // 自機が後退しているときも、隊列全体が切れないようにする。
+      if (Number.isFinite(minY) && minY < py) {
+        maxZoom = Math.min(maxZoom, (py - topMargin) / (py - minY));
+      }
+
+      if (!Number.isFinite(maxZoom)) return 1.00;
+      return Math.max(0.30, Math.min(1.50, maxZoom));
+    }
+
+    const SQUADRON_STATE = {
+      DORMANT: 'dormant',      // まだ実体化していない遠方反応
+      SLEEPING: 'sleeping',    // 宇宙にはいるが寝ている
+      ACTIVE: 'active',        // 起きて戦闘AIが動く
+      CLEARED: 'cleared'
+    };
+
+    const SQUADRON_KIND = {
+      MINOR: 'minor',
+      MAJOR: 'major'
+    };
+
+    const SQUADRON_MODE = {
+      FORMATION: 'formation',
+      SCRAMBLE: 'scramble'
+    };
+
+    const SQUADRON_TUNING = {
+      sensorDistance: 4200,
+      materializeDistance: 2300,
+      sleeperMaterializeDistance: 3300,
+      sleeperWakeScale: 0.42,
+      minorSquadronScrambleCount: 5,
+      minorWakeDistance: 1500,
+      majorWakeDistance: 1050,
+      minorSleepDistance: 2500,
+      majorSleepDistance: 1800,
+      maxActiveMinor: 7,
+      maxActiveMajor: 2
+    };
+
+    let spawningSquadronId = null;
+
+    // クラシック編隊は、その場の戦闘密度を作るためのローカル遭遇。
+    // 航路編隊とは違い、宙域を大きく離れるとリセットされ、また現れる。
+    // ただし航路編隊の撃破状態は保持し、復活させない。
+    const CLASSIC_ENCOUNTER_TUNING = {
+      resetDistance: 2500,      // この距離だけ航行したら、途中のクラシック編隊は宙域外扱い
+      respawnDistance: 900,     // 壊滅後、この距離だけ離れたら次のクラシック編隊
+      respawnCooldown: 90
+    };
+
+    const classicEncounter = {
+      anchorX: 0,
+      anchorY: 0,
+      cooldown: 0,
+      generation: 0
+    };
+
+    function classicTravelDistance() {
+      return Math.hypot(starOffsetX - classicEncounter.anchorX, starOffsetY - classicEncounter.anchorY);
+    }
+
+    function isClassicEnemy(e) {
+      return e.squadronId == null && e.classicEncounter === true;
+    }
+
+    function classicEnemiesAlive() {
+      return enemies.filter(e => isClassicEnemy(e) && e.state !== 'gone');
+    }
+
+    function removeClassicEncounterEnemies() {
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        if (isClassicEnemy(enemies[i])) enemies.splice(i, 1);
+      }
+    }
+
+    function updateClassicEncounterLifecycle() {
+      classicEncounter.cooldown = Math.max(0, classicEncounter.cooldown - 1);
+
+      const alive = classicEnemiesAlive().length;
+      const dist = classicTravelDistance();
+
+      // 途中のクラシック編隊を引きずったまま航路編隊とすれ違わないようにする。
+      // 宙域を十分離れたら、帰還アニメなしで「もう元に戻った」扱いにする。
+      if (alive > 0 && dist > CLASSIC_ENCOUNTER_TUNING.resetDistance) {
+        removeClassicEncounterEnemies();
+        classicEncounter.cooldown = CLASSIC_ENCOUNTER_TUNING.respawnCooldown;
+        spawnFormation();
+        return;
+      }
+
+      // 倒し切った場合も、その場では復活しない。
+      // プレイヤーが宙域を離れたら、次のクラシック遭遇として再配置する。
+      if (alive === 0 && dist > CLASSIC_ENCOUNTER_TUNING.respawnDistance && classicEncounter.cooldown <= 0) {
+        spawnFormation();
+      }
+    }
+
+    function squadronKindForType(type) {
+      if (type === 'regular' || type === 'heavyRegular') return SQUADRON_KIND.MAJOR;
+      return SQUADRON_KIND.MINOR;
+    }
+
+    function squadronModeForType(type) {
+      // 編隊ごとの性格。
+      // 大型・編隊長つきは整列帰還を重視。
+      // 小隊・紫遊撃隊は、遭遇後すぐ散開して戦場を荒らす。
+      if (type === 'smallPatrol' || type === 'purpleRaiders') return SQUADRON_MODE.SCRAMBLE;
+      return SQUADRON_MODE.FORMATION;
+    }
+
+    function seedSquadrons() {
+      squadrons.length = 0;
+      squadronSeq = 1;
+
+      // 「宙域航路」型配置。
+      // 敵は湧くのではなく、航路上に最初から存在する。
+      // 遠方では軽いセンサー反応、近づくと寝ている実体、さらに近づくと起動する。
+      const corridor = [
+        // デモ版：最初の通常編隊の背後にいる航路編隊は、すべて眠り状態から始める。
+        // いきなり紫遊撃隊が突撃してくるのではなく、近づく／撃つ／爆弾で起こす対象にする。
+        { y: -430,  x:   30, type: 'purpleRaiders', sleeper: true },
+        { y: -720,  x: -135, type: 'smallPatrol', sleeper: true },
+        { y: -990,  x:  115, type: 'regular', sleeper: true },
+        { y: -1320, x:  -70, type: 'commanderOnly', sleeper: true },
+        { y: -1660, x:  170, type: 'smallPatrol', sleeper: true },
+        { y: -1980, x: -150, type: 'purpleRaiders', sleeper: true },
+        { y: -2350, x:   65, type: 'regular', sleeper: true },
+        { y: -2780, x:  205, type: 'commanderOnly', sleeper: true },
+        { y: -3180, x: -120, type: 'smallPatrol', sleeper: true },
+        { y: -3600, x:   90, type: 'regular', sleeper: true },
+        { y: -4080, x: -210, type: 'purpleRaiders', sleeper: true },
+        { y: -4550, x:   45, type: 'regular', sleeper: true }
+      ];
+
+      corridor.forEach(c => {
+        const kind = squadronKindForType(c.type);
+        squadrons.push({
+          id: squadronSeq++,
+          x: c.x,
+          y: c.y,
+          type: c.type,
+          kind,
+          mode: c.mode || squadronModeForType(c.type),
+          allowLowCountScramble: c.allowLowCountScramble !== undefined ? !!c.allowLowCountScramble : kind === SQUADRON_KIND.MINOR,
+          state: SQUADRON_STATE.DORMANT,
+          visible: false,
+          spawned: false,
+          activated: false,
+          cleared: false,
+          alertTimer: 0,
+          sleepPhase: Math.random() * Math.PI * 2,
+          sleeper: !!c.sleeper
+        });
+      });
+    }
+
+    function activeSquadronCounts() {
+      let minor = 0;
+      let major = 0;
+      for (const s of squadrons) {
+        if (s.state !== SQUADRON_STATE.ACTIVE || s.cleared) continue;
+        if (s.kind === SQUADRON_KIND.MINOR) minor++;
+        else major++;
+      }
+      return { minor, major };
+    }
+
+    function enemiesForSquadron(s) {
+      return enemies.filter(e => e.squadronId === s.id && e.state !== 'gone');
+    }
+
+    function combatAliveForSquadron(s) {
+      let n = 0;
+      for (const e of enemies) {
+        if (e.squadronId !== s.id || e.state === 'gone') continue;
+        // 護衛は補充や随伴で数が揺れるため、スクランブル判定の母数から外す。
+        if (e.role === 'guard') continue;
+        n++;
+      }
+      return n;
+    }
+
+    function getSquadronById(id) {
+      if (id == null) return null;
+      return squadrons.find(s => s.id === id) || null;
+    }
+
+    function updateSquadronBattleModes() {
+      // 低残数でスクランブルへ移行するかどうかも、編隊ごとの許可で決める。
+      // これにより、大型整列編隊まで巻き込まれて帰還しなくなる事故を防ぐ。
+      for (const s of squadrons) {
+        if (s.cleared || s.state !== SQUADRON_STATE.ACTIVE) continue;
+        if (!s.allowLowCountScramble) continue;
+        if (s.mode === SQUADRON_MODE.SCRAMBLE) continue;
+        const n = combatAliveForSquadron(s);
+        if (n > 0 && n <= SQUADRON_TUNING.minorSquadronScrambleCount) {
+          s.mode = SQUADRON_MODE.SCRAMBLE;
+        }
+      }
+    }
+
+    function isSquadronScramble(s) {
+      return !!s && s.mode === SQUADRON_MODE.SCRAMBLE;
+    }
+
+    function anyScrambleMode() {
+      for (const s of squadrons) {
+        if (s.cleared || s.state !== SQUADRON_STATE.ACTIVE) continue;
+        if (isSquadronScramble(s)) return true;
+      }
+      return isClassicScrambleMode();
+    }
+
+    function setSquadronEnemiesState(s, nextState) {
+      for (const e of enemies) {
+        if (e.squadronId !== s.id) continue;
+
+        // 突撃中や帰還中を無理に寝かせると軌道が壊れるので、隊列内の敵だけ切り替える。
+        if (nextState === 'sleep') {
+          if (e.state === 'sleep' || e.state === 'active' || e.state === 'return') {
+            e.state = 'sleep';
+            e.alert = 0;
+            e.diveDelay = e.role === 'commander'
+              ? 280 + Math.random() * 260
+              : 120 + Math.random() * 260;
+          }
+        } else if (nextState === 'active') {
+          if (e.state === 'sleep') {
+            e.state = 'active';
+            e.alert = 1;
+            e.diveDelay = Math.min(e.diveDelay || 80, 45 + Math.random() * 120);
+          }
+        }
+      }
+    }
+
+
+    function enemyScreenPosition(e) {
+      return {
+        x: (e.x - player.x) * cameraScale + W / 2,
+        y: (e.y - player.y) * cameraScale + battleH / 2
+      };
+    }
+
+    function enemyComfortablyOffscreen(e, margin = 190) {
+      const sp = enemyScreenPosition(e);
+      return sp.x < -margin || sp.x > W + margin || sp.y < -margin || sp.y > battleH + margin;
+    }
+
+    function instantReturnEnemyToHome(e, nextState = 'sleep') {
+      // 撃破済みは復活させない。あくまで「生きているが画面外に抜けた敵」の整列だけ。
+      if (e.state === 'gone') return;
+
+      e.x = e.homeX;
+      e.y = e.homeY;
+      e.state = nextState;
+      e.alert = nextState === 'active' ? 1 : 0;
+      e.diveT = 0;
+      e.returnT = 0;
+      e.offscreenT = 0;
+      e.rediveCount = 0;
+      e.sortieGroupStarted = false;
+      e.impactWarned = false;
+      e.impactWarningLife = 0;
+      e.meteorInit = false;
+      e.meteorLaunched = false;
+      e.coastVX = 0;
+      e.coastVY = 0;
+      e.firedShots = 0;
+      e.fireTimes = null;
+
+      delete e.diveStartX;
+      delete e.diveStartY;
+      delete e.diveControlX;
+      delete e.diveControlY;
+      delete e.diveAimX;
+      delete e.diveAimY;
+      delete e.diveTargetX;
+      delete e.diveTargetY;
+      delete e.returnFromX;
+      delete e.returnFromY;
+
+      e.diveDelay = e.role === 'commander'
+        ? 300 + Math.random() * 280
+        : 160 + Math.random() * 300;
+      e.returnMode = null;
+    }
+
+    function belongsToUpperFormation(e) {
+      return e.squadronId != null && e.homeY < player.y - RETURN_TUNING.upperFormationMargin;
+    }
+
+    function beginAlienReturn(e, dir = 1) {
+      // 126版の「上から隊列へ戻る」美しい帰還は残す。
+      // ただし、一度自機より下・画面下側へ抜けた機体を home に瞬間配置すると、
+      // 航路編隊だけ「ぱっと現れる」ように見えてしまう。
+      // そこで下へ抜けた機体は、裏で画面上方へ回り込ませ、そこから可視帰還させる。
+      const upperFormation = belongsToUpperFormation(e);
+      let rerouteFromTop = false;
+
+      if (upperFormation) {
+        const sp = enemyScreenPosition(e);
+        const belowPlayer = e.y > player.y + 80;
+        const belowScreen = sp.y > battleH + 36;
+        rerouteFromTop = belowPlayer || belowScreen;
+      }
+
+      e.state = 'return';
+      e.returnT = 0;
+      e.returnSide = dir || e.returnSide || 1;
+      e.impactWarned = false;
+      e.impactWarningLife = 0;
+      e.meteorInit = false;
+      e.meteorLaunched = false;
+      e.sortieGroupStarted = false;
+
+      if (upperFormation) {
+        e.returnMode = 'visibleUpper';
+        e.returnDuration = RETURN_TUNING.visibleReturnFrames;
+
+        if (rerouteFromTop) {
+          // 下から上へ画面を横切る帰還は見せない。
+          // 代わりに画面上端付近から降りてくる帰還として再開する。
+          const topWorldY = player.y + (0 - battleH * 0.05 - player.y) / Math.max(cameraScale, 0.1);
+          const side = e.returnSide || 1;
+          e.returnFromX = e.homeX + side * (70 + Math.random() * 45);
+          e.returnFromY = Math.min(topWorldY, e.homeY - 180);
+        } else {
+          e.returnFromX = Math.max(-90, Math.min(W + 90, e.x));
+          e.returnFromY = Math.max(-130, Math.min(battleH + 130, e.y));
+        }
+
+        e.x = e.returnFromX;
+        e.y = e.returnFromY;
+      } else {
+        e.returnMode = 'quietTop';
+        e.returnDuration = RETURN_TUNING.quietReturnFrames;
+        e.returnFromX = e.homeX;
+        const topWorldY = player.y + (0 - player.y) / Math.max(cameraScale, 0.1);
+        e.returnFromY = Math.min(topWorldY - 90, e.homeY - 220);
+        e.x = e.returnFromX;
+        e.y = e.returnFromY;
+      }
+    }
+
+    function combatFocusSquadronId() {
+      // いま画面上で「主戦闘」に見えている編隊を一つだけ選ぶ。
+      // これ以外の編隊は、画面外に抜けたら帰還アニメを省略してよい。
+      let bestId = null;
+      let bestScore = -Infinity;
+
+      for (const e of enemies) {
+        if (e.state === 'gone' || e.squadronId == null) continue;
+
+        const d = Math.hypot(e.x - player.x, e.y - player.y);
+        const sp = enemyScreenPosition(e);
+        const onScreen = sp.x > -40 && sp.x < W + 40 && sp.y > -60 && sp.y < battleH + 80;
+
+        let score = 0;
+        if (e.state === 'dive') score += 900;
+        if (e.state === 'active') score += 360;
+        if (e.state === 'return') score += 120;
+        if (onScreen) score += 240;
+        score += Math.max(0, 900 - d);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestId = e.squadronId;
+        }
+      }
+
+      return bestScore > 260 ? bestId : null;
+    }
+
+    function cleanupDistantNonFocusAliens() {
+      const focusId = combatFocusSquadronId();
+      const activeCounts = activeSquadronCounts();
+      const multipleActiveSquadrons = activeCounts.minor + activeCounts.major >= 2;
+
+      for (const e of enemies) {
+        if (e.state === 'gone' || e.squadronId == null) continue;
+        // 可視帰還中の敵は cleanup で home に瞬間配置しない。
+        // ここを通すと、航路編隊だけ「ぱっと現れる」原因になる。
+        if (e.state === 'return') continue;
+
+        const s = squadrons.find(q => q.id === e.squadronId);
+        if (!s || s.cleared || s.state === SQUADRON_STATE.CLEARED) continue;
+
+        const d = Math.hypot(e.x - player.x, e.y - player.y);
+        const off = enemyComfortablyOffscreen(e, 190);
+        const far = d > (s.kind === SQUADRON_KIND.MINOR ? 1550 : 1850);
+        const notFocus = focusId !== null && e.squadronId !== focusId;
+        const squadronSleepingOrDistant = s.state === SQUADRON_STATE.SLEEPING || d > 2300;
+
+        // 別編隊との戦闘中、または通り過ぎた遠方編隊は、画面外なら「もう戻った」ことにする。
+        // これで帰還機が延々と画面を横切る問題を減らす。
+        if (off && (far || squadronSleepingOrDistant) && (notFocus || multipleActiveSquadrons || s.state === SQUADRON_STATE.SLEEPING)) {
+          const nextState = s.state === SQUADRON_STATE.ACTIVE ? 'active' : 'sleep';
+          instantReturnEnemyToHome(e, nextState);
+        }
+      }
+    }
+
+    function updateSleepingSquadron(s) {
+      // 寝ている編隊はAIを回さず、隊列全体がほんの少し漂うだけ。
+      s.sleepPhase += 0.012;
+      const driftX = Math.sin(s.sleepPhase * 0.73 + s.id) * 0.10;
+      const driftY = Math.cos(s.sleepPhase * 0.57 + s.id) * 0.07;
+      s.x += driftX;
+      s.y += driftY;
+      for (const e of enemies) {
+        if (e.squadronId !== s.id) continue;
+        if (e.state !== 'sleep') continue;
+        e.homeX += driftX;
+        e.homeY += driftY;
+      }
+    }
+
+    function updateSquadrons() {
+      let counts = activeSquadronCounts();
+
+      for (const s of squadrons) {
+        if (s.cleared || s.state === SQUADRON_STATE.CLEARED) continue;
+
+        const d = Math.hypot(s.x - player.x, s.y - player.y);
+        s.visible = d < SQUADRON_TUNING.sensorDistance;
+
+        // 近づいたら、まず「寝ている実体」として宇宙に置く。
+        // 眠り編隊はより遠くから実体化し、しれっと航路上に存在している感じを出す。
+        // ここではまだAIを起こさない。
+        const materializeDistance = s.sleeper
+          ? SQUADRON_TUNING.sleeperMaterializeDistance
+          : SQUADRON_TUNING.materializeDistance;
+        if (!s.spawned && d < materializeDistance) {
+          s.spawned = true;
+          s.state = SQUADRON_STATE.SLEEPING;
+          spawnSquadron(s);
+          setSquadronEnemiesState(s, 'sleep');
+        }
+
+        if (!s.spawned) continue;
+
+        const squadEnemies = enemiesForSquadron(s);
+        if (squadEnemies.length === 0) {
+          s.cleared = true;
+          s.state = SQUADRON_STATE.CLEARED;
+          continue;
+        }
+
+        const isMinor = s.kind === SQUADRON_KIND.MINOR;
+        const baseWakeDist = isMinor ? SQUADRON_TUNING.minorWakeDistance : SQUADRON_TUNING.majorWakeDistance;
+        const wakeDist = s.sleeper ? baseWakeDist * SQUADRON_TUNING.sleeperWakeScale : baseWakeDist;
+        const sleepDist = isMinor ? SQUADRON_TUNING.minorSleepDistance : SQUADRON_TUNING.majorSleepDistance;
+
+        if (s.state === SQUADRON_STATE.SLEEPING) {
+          updateSleepingSquadron(s);
+
+          // 小編隊は宇宙の交通量担当なので起きやすい。
+          // 大編隊は2つまで。同時遭遇の迫力は出すが、CPUと画面密度は守る。
+          const canWakeMinor = isMinor && counts.minor < SQUADRON_TUNING.maxActiveMinor;
+          const canWakeMajor = !isMinor && counts.major < SQUADRON_TUNING.maxActiveMajor;
+          if (d < wakeDist && (canWakeMinor || canWakeMajor)) {
+            s.state = SQUADRON_STATE.ACTIVE;
+            s.activated = true;
+            s.alertTimer = isMinor ? 260 : 420;
+            setSquadronEnemiesState(s, 'active');
+            if (isMinor) counts.minor++;
+            else counts.major++;
+          }
+        } else if (s.state === SQUADRON_STATE.ACTIVE) {
+          s.alertTimer = Math.max(0, (s.alertTimer || 0) - 1);
+
+          // 近くにいる間は警戒継続。通り過ぎてほとぼりが冷めたら寝る。
+          if (d < wakeDist * 1.12) {
+            s.alertTimer = Math.max(s.alertTimer, isMinor ? 180 : 300);
+          }
+
+          if (d > sleepDist && s.alertTimer <= 0) {
+            s.state = SQUADRON_STATE.SLEEPING;
+            s.activated = false;
+            setSquadronEnemiesState(s, 'sleep');
+            if (isMinor) counts.minor = Math.max(0, counts.minor - 1);
+            else counts.major = Math.max(0, counts.major - 1);
+          }
+        }
+      }
+    }
+
+    function spawnSquadron(s) {
+      spawningSquadronId = s.id;
+      try {
+        if (s.type === 'commanderOnly') {
+          spawnCommanderPatrol(s.x, s.y);
+        } else if (s.type === 'purpleRaiders') {
+          spawnPurpleRaiders(s.x, s.y);
+        } else if (s.type === 'smallPatrol') {
+          spawnSmallPatrol(s.x, s.y);
+        } else {
+          spawnRemoteRegularFormation(s.x, s.y);
+        }
+      } finally {
+        spawningSquadronId = null;
+      }
+    }
+
+    function spawnSmallPatrol(cx, cy) {
+      const offsets = [
+        { x: -58, y:  0, type: 'normal' },
+        { x: -24, y: 26, type: 'purple' },
+        { x:  24, y: 26, type: 'normal' },
+        { x:  58, y:  0, type: 'angry' },
+        { x:   0, y: 54, type: 'normal' }
+      ];
+      offsets.forEach(off => pushEnemyAt(cx + off.x, cy + off.y, off.type));
+    }
+
+    function pushEnemyAt(hx, hy, type, role = 'soldier', commanderId = null, guardingCommanderId = null) {
+      const isCommander = role === 'commander';
+      enemies.push({
+        homeX: hx,
+        homeY: hy,
+        x: hx,
+        y: hy,
+        r: isCommander ? 12 : 9,
+        state: 'sleep',
+        phase: Math.random() * Math.PI * 2,
+        hp: isCommander ? 2 : 1,
+        role,
+        commanderId,
+        guardingCommanderId,
+        squadronId: spawningSquadronId,
+        alert: 0,
+        diveT: 0,
+        diveDelay: isCommander ? 240 + Math.random() * 180 : 80 + Math.random() * 220,
+        type,
+        rediveMax: 1,
+        rediveCount: 0,
+        evadeCharges: 999,
+        evadeCooldown: 0,
+        evadeOffsetX: 0,
+        evadeOffsetY: 0,
+        impactWarned: false,
+        impactWarningLife: 0
+      });
+    }
+
+    function spawnRemoteRegularFormation(cx, cy) {
+      const cols = 5;
+      const rows = 3;
+      const gapX = 38;
+      const gapY = 31;
+      const sx = cx - (cols - 1) * gapX / 2;
+      const sy = cy;
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const type = row === 0 ? 'purple' : (Math.random() < 0.10 ? 'angry' : 'normal');
+          pushEnemyAt(sx + col * gapX, sy + row * gapY, type);
+        }
+      }
+    }
+
+    function spawnPurpleRaiders(cx, cy) {
+      const cols = 6;
+      const gapX = 50;
+      const sx = cx - (cols - 1) * gapX / 2;
+
+      for (let col = 0; col < cols; col++) {
+        pushEnemyAt(sx + col * gapX, cy + Math.sin(col) * 12, 'purple');
+      }
+    }
+
+    function spawnCommanderPatrol(cx, cy) {
+      const cid = 'P' + Math.floor(Math.random() * 1000000);
+      pushEnemyAt(cx, cy, 'commander', 'commander', cid, null);
+
+      // 少数護衛だけの哨戒隊。残存数が少ないので、実体化するとスクランブルに入りやすい。
+      const offsets = [
+        { x: -42, y: 34 },
+        { x:  42, y: 34 },
+        { x:   0, y: 62 }
+      ];
+
+      offsets.forEach(off => {
+        pushEnemyAt(cx + off.x, cy + off.y, 'guard', 'guard', null, cid);
+      });
+    }
+
+    function nearestInactiveSquadron() {
+      let best = null;
+      let bestD = Infinity;
+      for (const s of squadrons) {
+        if (s.activated || s.cleared) continue;
+        const d = Math.hypot(s.x - player.x, s.y - player.y);
+        if (d < bestD) {
+          bestD = d;
+          best = s;
+        }
+      }
+      return best ? { squadron: best, distance: bestD } : null;
+    }
+
+    function drawSquadronBlips() {
+      if (time < CAMERA_DRAMA.revealBlipsAfter) return;
+      // 未遭遇編隊を遠距離センサー反応として薄く表示。
+      // 敵本体ではなく、あくまで宙域の気配。
+      ctx.save();
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+      for (const s of squadrons) {
+        if (!s.visible || s.cleared) continue;
+        if (s.spawned && s.state === SQUADRON_STATE.ACTIVE) continue;
+
+        const sx = (s.x - player.x) * cameraScale + W / 2;
+        const sy = (s.y - player.y) * cameraScale + battleH / 2;
+
+        // 多少画面外でも端にクランプしてセンサー反応を見せる。
+        const edge = 24;
+        const bx = Math.max(edge, Math.min(W - edge, sx));
+        const by = Math.max(edge, Math.min(battleH - edge, sy));
+
+        const pulse = 0.5 + 0.5 * Math.sin(time * 0.08 + s.id);
+        ctx.globalAlpha = 0.22 + pulse * 0.18;
+        ctx.strokeStyle = s.type === 'commanderOnly' ? 'rgba(250,204,21,0.75)'
+          : s.type === 'purpleRaiders' ? 'rgba(216,180,254,0.75)'
+          : 'rgba(125,211,252,0.70)';
+        ctx.lineWidth = 1.2;
+        // 遠距離反応。
+        // 円だけでなく、少し航路障害物っぽい横長シグナルにする。
+        ctx.beginPath();
+        ctx.ellipse(bx, by, 18 + pulse * 8, 8 + pulse * 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(bx - 10, by);
+        ctx.lineTo(bx + 10, by);
+        ctx.stroke();
+
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.arc(bx, by, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function init() {
+      initSettingsPanel();
+      resize();
+      player.x = playerBaseX();
+      player.y = playerBaseY();
+      player.targetX = player.x;
+      player.targetY = player.y;
+      moveInput.targetX = player.x;
+      moveInput.targetY = player.y;
+      spawnFormation();
+      seedSquadrons();
+      requestAnimationFrame(loop);
+    }
+
+    function spawnFormation() {
+      // クラシック編隊だけを差し替える。
+      // 航路編隊（squadronId付き）は宇宙の記憶なので消さない。
+      removeClassicEncounterEnemies();
+      classicEncounter.anchorX = starOffsetX;
+      classicEncounter.anchorY = starOffsetY;
+      classicEncounter.cooldown = CLASSIC_ENCOUNTER_TUNING.respawnCooldown;
+      classicEncounter.generation++;
+
+      // 5段構成：
+      // 最上部：編隊長
+      // その下：護衛層
+      // その下：紫横展開機
+      // 下2段：通常機
+      const cols = 7;
+      const rows = 5;
+      const enemyGapX = 38;
+      const enemyGapY = 31;
+      const sx = W / 2 - (cols - 1) * enemyGapX / 2;
+      const sy = 42;
+      const commanderCol = Math.floor(cols / 2);
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+
+          // 最上段は中央の編隊長1機だけ。
+          if (row === 0 && col !== commanderCol) continue;
+
+          const isCommander = row === 0 && col === commanderCol;
+          const isGuard = row === 1;
+          const isPurple = row === 2;
+          const isNormal = row >= 3;
+
+          const hx = sx + col * enemyGapX;
+          const hy = sy + row * enemyGapY;
+
+          enemies.push({
+            homeX: hx,
+            homeY: hy,
+            x: hx,
+            y: hy,
+            r: isCommander ? 12 : 9,
+            state: 'sleep',
+            phase: Math.random() * Math.PI * 2,
+            hp: isCommander ? 2 : 1,
+            role: isCommander ? 'commander' : (isGuard ? 'guard' : 'soldier'),
+            commanderId: isCommander ? 'C1' : null,
+            guardingCommanderId: isGuard ? 'C1' : null,
+            alert: 0,
+            diveT: 0,
+            diveDelay: isCommander
+              ? 320 + Math.random() * 300
+              : isGuard
+                ? 190 + Math.random() * 260
+                : 120 + Math.random() * 240,
+            type: isCommander ? 'commander'
+              : isGuard ? 'guard'
+              : isPurple ? 'purple'
+              : (Math.random() < 0.08 ? 'angry' : 'normal'),
+            rediveMax: 1,
+            rediveCount: 0,
+            evadeCharges: 999,
+            evadeCooldown: 0,
+            evadeOffsetX: 0,
+            evadeOffsetY: 0,
+            impactWarned: false,
+            impactWarningLife: 0,
+            squadronId: null,
+            classicEncounter: true,
+            classicGeneration: classicEncounter.generation
+          });
+        }
+      }
+    }
+
+    function triggerBomb() {
+      if (typeof activateBomb === 'function') {
+        activateBomb();
+      } else if (typeof bomb === 'function') {
+        bomb();
+      }
+    }
+
+    function triggerHomingMissile() {
+      if (typeof activateHomingMissile === 'function') {
+        activateHomingMissile();
+      } else if (typeof fireHomingMissile === 'function') {
+        fireHomingMissile();
+      }
+    }
+
+    function shoot() {
+      if (player.shotCooldown > 0) return;
+
+      // ツインブラスター。
+      // 発射間隔は従来のまま、1回のSHOTで左右2発を出す。
+      // 狙いがシビアすぎる問題を少し緩和しつつ、ブラスター撃破の気持ちよさを上げる。
+      bullets.push({ x: player.x - 5, y: player.y - 15, vx: 0, vy: -8, r: 3, life: 80 });
+      bullets.push({ x: player.x + 5, y: player.y - 15, vx: 0, vy: -8, r: 3, life: 80 });
+
+      player.shotCooldown = 18;
+    }
+
+    function throwBomb() {
+      // 爆弾がすでに出ている場合は、Bボタンで任意起爆。
+      if (bombs.length > 0) {
+        const b = bombs[0];
+        explode(b.x, b.y);
+        bombs.splice(0, 1);
+        player.bombCooldown = 38;
+        return;
+      }
+
+      if (player.bombCooldown > 0) return;
+
+      // 1回目のBで前方へ投げる。自動では爆発しない。
+      bombs.push({
+        x: player.x,
+        y: player.y - 18,
+
+        // 発射直後は自機の慣性を少し受け継ぎ、その場に残る。
+        // 後退しながら投げると、近くの敵を迎撃しやすい。
+        vx: player.vx * BOMB_PHYSICS.inheritedVelocityScale,
+        vy: player.vy * BOMB_PHYSICS.inheritedVelocityScale,
+
+        hold: BOMB_PHYSICS.holdFrames,
+        r: 5,
+        life: 520,
+        armed: true
+      });
+      player.bombCooldown = 14;
+      // 爆弾ズーム演出は一旦停止。
+      // 演出的には良いが、戦況把握と空間感覚を崩しやすかった。
+      // zoomPulse(1.40);
+    }
+
+    function boostToward(x, y) {
+      if (player.boostCooldown > 0) return;
+      const dx = x - player.x;
+      const dy = y - player.y;
+      const d = Math.hypot(dx, dy) || 1;
+      player.vx += dx / d * 9.5;
+      player.vy += dy / d * 9.5;
+      player.boosting = 22;
+      player.boostCooldown = 120;
+      player.targetX = x;
+      player.targetY = Math.min(y, battleH - 20);
+      zoomPulse(1.15);
+    }
+
+    function enemyShoot(e) {
+      // いまはランダムで2種類。
+      // 将来的には敵キャラごとの兵装として分ける。
+      if (Math.random() < 0.45) {
+        enemyNeedleShot(e);
+      } else {
+        enemyAimedShot(e);
+      }
+    }
+
+    function enemyAimedShot(e) {
+      // 発射時点の自機位置を狙う従来型。
+      const dx = player.x - e.x;
+      const dy = player.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const speed = e.type === 'angry' ? 3.7 : 3.1;
+      enemyBullets.push({
+        x: e.x,
+        y: e.y,
+        vx: dx / d * speed,
+        vy: dy / d * speed,
+        r: 3.5,
+        life: 180,
+        kind: 'aimed'
+      });
+    }
+
+    function enemyNeedleShot(e) {
+      // 伝統的な針弾。上方向、つまりマイナスY方向には撃てない。
+      // 敵の横移動の慣性だけ少し乗せる。
+      const inertiaX = Math.max(-1.2, Math.min(1.2, (e.meteorVX || 0) * 0.22));
+      const driftX = inertiaX + ((e.diveDir || 0) * 0.35);
+      const speedY = e.type === 'angry' ? 4.6 : 3.85;
+      enemyBullets.push({
+        x: e.x,
+        y: e.y + 4,
+        vx: driftX,
+        vy: speedY,
+        r: 2.5,
+        life: 190,
+        kind: 'needle'
+      });
+    }
+
+    function wakeDormantEnemy(e, source = 'nearby') {
+      if (!e || e.state !== 'sleep') return false;
+      e.state = 'active';
+      e.alert = 1;
+      e.diveDelay = Math.min(e.diveDelay || 120, source === 'bomb' ? 36 + Math.random() * 70 : 52 + Math.random() * 90);
+      e.wakeFlash = 34;
+      for (let k = 0; k < 4; k++) {
+        particles.push({
+          x: e.x,
+          y: e.y,
+          vx: (Math.random() - 0.5) * 2.8,
+          vy: (Math.random() - 0.5) * 2.8,
+          life: 18 + Math.random() * 10,
+          r: 1.4
+        });
+      }
+      return true;
+    }
+
+    function wakeDormantEnemiesNear(x, y, radius, source = 'nearby') {
+      let woke = 0;
+      for (const e of enemies) {
+        if (e.state !== 'sleep') continue;
+        const d = Math.hypot(e.x - x, e.y - y);
+        if (d < radius) {
+          if (wakeDormantEnemy(e, source)) woke++;
+        }
+      }
+      return woke;
+    }
+
+    function isDormantBumpTarget(e) {
+      // 突撃中の敵との接触は別物。ここでは「隊列で待っている敵」だけを壁として扱う。
+      return e && (e.state === 'sleep' || e.state === 'active');
+    }
+
+    function resolveDormantEnemyCollision(e, withEffect) {
+      if (!isDormantBumpTarget(e)) return false;
+
+      let dx = player.x - e.x;
+      let dy = player.y - e.y;
+      let d = Math.hypot(dx, dy);
+
+      // ほぼ中心が重なった場合は、速度の逆向きへ逃がす。
+      if (d < 0.001) {
+        const v = Math.hypot(player.vx, player.vy) || 1;
+        dx = -player.vx / v;
+        dy = -player.vy / v;
+        d = 1;
+      }
+
+      const nx = dx / d;
+      const ny = dy / d;
+      const minDist = player.r + e.r + DORMANT_BUMP.radiusPadding;
+      const overlap = minDist - d;
+      if (overlap <= 0) return false;
+
+      // めり込み分は必ず世界側を押し戻す。
+      // これがないと、反発演出があっても慣性で編隊の中を突破できてしまう。
+      const pushOut = Math.min(DORMANT_BUMP.maxPushOut, overlap + DORMANT_BUMP.pushOutPadding);
+      shiftWorld(-nx * pushOut, -ny * pushOut);
+
+      // 進入方向の速度成分を反転する。
+      // 単に加速を足すのではなく、壁に当たったように「ぽよーん」と跳ね返す。
+      const inward = player.vx * nx + player.vy * ny;
+      if (inward < 0) {
+        player.vx -= (1 + DORMANT_BUMP.bounce) * inward * nx;
+        player.vy -= (1 + DORMANT_BUMP.bounce) * inward * ny;
+      }
+
+      // 反発が弱すぎると押し負けて貫通感が出るので、最低限の跳ね返りを保証する。
+      const outward = player.vx * nx + player.vy * ny;
+      if (outward < DORMANT_BUMP.minBounceSpeed) {
+        const add = DORMANT_BUMP.minBounceSpeed - outward;
+        player.vx += nx * add;
+        player.vy += ny * add;
+      }
+
+      if (withEffect) {
+        player.bumpCooldown = DORMANT_BUMP.cooldown;
+        player.bumpInvul = DORMANT_BUMP.invul;
+        player.bumpFlash = DORMANT_BUMP.invul;
+
+        // 相手側も少しだけ揺らす。隊列は後で自然に戻る。
+        e.evadeOffsetX = (e.evadeOffsetX || 0) - nx * DORMANT_BUMP.enemyKick;
+        e.evadeOffsetY = (e.evadeOffsetY || 0) - ny * DORMANT_BUMP.enemyKick;
+        e.bumpLife = 20;
+
+        // ぶつかった本人と周囲の浅い眠りを少し起こす。
+        wakeDormantEnemy(e, 'bump');
+        wakeDormantEnemiesNear(e.x, e.y, DORMANT_BUMP.wakeRadius, 'bump');
+
+        for (let k = 0; k < 14; k++) {
+          const a = Math.PI * 2 * k / 14;
+          particles.push({
+            x: (player.x + e.x) * 0.5,
+            y: (player.y + e.y) * 0.5,
+            vx: Math.cos(a) * (0.8 + Math.random() * 2.1),
+            vy: Math.sin(a) * (0.8 + Math.random() * 2.1),
+            life: 16 + Math.random() * 12,
+            r: 1.7
+          });
+        }
+      }
+
+      return true;
+    }
+
+    function handleDormantEnemyBumps() {
+      // クールダウン中でも「壁」としての押し戻しは続ける。
+      // ただしエフェクト・起床・無敵付与は最初の接触時だけ。
+      let effectUsed = player.bumpCooldown <= 0;
+
+      // 複数機の隙間に入った場合も押し出せるよう、数回だけ解決する。
+      for (let pass = 0; pass < 3; pass++) {
+        let resolved = false;
+
+        for (const e of enemies) {
+          if (!isDormantBumpTarget(e)) continue;
+          const d = Math.hypot(player.x - e.x, player.y - e.y);
+          if (d < player.r + e.r + DORMANT_BUMP.radiusPadding) {
+            if (resolveDormantEnemyCollision(e, effectUsed)) {
+              resolved = true;
+              effectUsed = false;
+            }
+          }
+        }
+
+        if (!resolved) break;
+      }
+    }
+
+    function explode(x, y, maxR = 72) {
+      explosions.push({ x, y, r: 8, maxR, life: 30 });
+      wakeDormantEnemiesNear(x, y, maxR + WAKEUP_WEAPONS.bombWakeExtra, 'bomb');
+      for (let i = 0; i < 26; i++) {
+        const a = Math.PI * 2 * i / 26;
+        particles.push({
+          x, y,
+          vx: Math.cos(a) * (1.3 + Math.random() * 2.5),
+          vy: Math.sin(a) * (1.3 + Math.random() * 2.5),
+          life: 28 + Math.random() * 12,
+          r: 2
+        });
+      }
+      // 爆発時ズームも停止。
+      // 爆風エフェクトは残し、カメラだけ固定する。
+      // zoomPulse(1.65);
+    }
+
+    function setVectorInput(x, y) {
+      const cx = playerBaseX();
+      const cy = playerBaseY();
+      const rawDx = x - cx;
+      const rawDy = y - cy;
+      const dist = Math.hypot(rawDx, rawDy);
+      if (dist < MOVE.deadZone) {
+        moveInput.dx = 0;
+        moveInput.dy = 0;
+        moveInput.power = 0;
+        return;
+      }
+      const clamped = Math.min(dist, MOVE.inputRadius);
+      moveInput.dx = rawDx / dist;
+      moveInput.dy = rawDy / dist;
+      moveInput.power = (clamped - MOVE.deadZone) / (MOVE.inputRadius - MOVE.deadZone);
+    }
+
+    function requestGameFullscreen() {
+      const el = document.documentElement;
+      try {
+        if (document.fullscreenElement) {
+          if (document.exitFullscreen) document.exitFullscreen();
+          return;
+        }
+
+        const req =
+          el.requestFullscreen ||
+          el.webkitRequestFullscreen ||
+          el.msRequestFullscreen;
+
+        if (req) req.call(el);
+
+        // Android Chromeでは効く場合だけ横/縦のURLバー領域が消える。
+        // 画面向きは縦持ち前提なのでロックしない。
+      } catch (err) {
+        console.log('fullscreen request failed', err);
+      }
+    }
+
+    function handlePointer(x, y, type, e) {
+      // スマホ仮想スティック。下部左側を親指操作に使う。
+      if (isTouchLayout() && y >= battleH && x < W * 0.42) {
+        if (type === 'down') {
+          mobileStick.active = true;
+          mobileStick.pointerId = e ? e.pointerId : null;
+          setMobileStickFromPointer(x, y);
+        } else if (type === 'move' && mobileStick.active && (!e || e.pointerId === mobileStick.pointerId)) {
+          setMobileStickFromPointer(x, y);
+        }
+        return;
+      }
+
+      const btn = buttons.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+      if (btn && type === 'down') {
+        if (btn.label === 'SHOT') shoot();
+        if (btn.label === 'BOMB') throwBomb();
+        if (btn.label === 'BOOST') boostToward(player.x + moveInput.dx * 120, player.y + moveInput.dy * 120);
+        if (btn.label === 'FULL') requestGameFullscreen();
+        btn.down = true;
+        return;
+      }
+
+      if (y >= battleH) return;
+
+      if (type === 'down') {
+        moveInput.active = true;
+        moveInput.pointerId = e ? e.pointerId : null;
+        moveInput.lastX = x;
+        moveInput.lastY = y;
+        moveInput.targetX = x;
+        moveInput.targetY = y;
+        if (moveInput.mode === 'vector') setVectorInput(x, y);
+      } else if (type === 'move' && moveInput.active) {
+        if (moveInput.mode === 'dragworld') {
+          const dx = x - moveInput.lastX;
+          const dy = y - moveInput.lastY;
+          player.vx += dx * MOVE.dragSensitivity;
+          player.vy += dy * MOVE.dragSensitivity;
+          moveInput.dx = dx;
+          moveInput.dy = dy;
+          moveInput.power = Math.min(1, Math.hypot(dx, dy) / 42);
+          moveInput.lastX = x;
+          moveInput.lastY = y;
+        } else if (moveInput.mode === 'tap') {
+          moveInput.targetX = x;
+          moveInput.targetY = y;
+        } else if (moveInput.mode === 'vector') {
+          setVectorInput(x, y);
+        }
+      }
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      canvas.setPointerCapture(e.pointerId);
+      const p = screenToGame(e.clientX, e.clientY);
+      handlePointer(p.x, p.y, 'down', e);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (e.buttons || e.pointerType === 'touch') {
+        const p = screenToGame(e.clientX, e.clientY);
+        handlePointer(p.x, p.y, 'move', e);
+      }
+    });
+    canvas.addEventListener('pointerup', e => {
+      buttons.forEach(b => b.down = false);
+
+      if (mobileStick.pointerId === e.pointerId || mobileStick.pointerId === null) {
+        mobileStick.active = false;
+        mobileStick.pointerId = null;
+        mobileStick.dx = 0;
+        mobileStick.dy = 0;
+        mobileStick.power = 0;
+      }
+
+      if (moveInput.pointerId === e.pointerId || moveInput.pointerId === null) {
+        moveInput.active = false;
+        moveInput.pointerId = null;
+        if (moveInput.mode !== 'dragworld') {
+          moveInput.dx = 0;
+          moveInput.dy = 0;
+          moveInput.power = 0;
+        }
+      }
+    });
+
+    canvas.addEventListener('pointercancel', e => {
+      buttons.forEach(b => b.down = false);
+      mobileStick.active = false;
+      mobileStick.pointerId = null;
+      mobileStick.dx = 0;
+      mobileStick.dy = 0;
+      mobileStick.power = 0;
+      moveInput.active = false;
+      moveInput.pointerId = null;
+    });
+
+
+    function buttonPressed(gp, index) {
+      return !!(gp.buttons[index] && gp.buttons[index].pressed);
+    }
+
+    function buttonJustPressed(gp, index) {
+      const now = buttonPressed(gp, index);
+      const before = !!gamepadState.prevButtons[index];
+      return now && !before;
+    }
+
+    function cycleMoveMode() {
+      if (moveInput.mode === 'dragworld') moveInput.mode = 'tap';
+      else if (moveInput.mode === 'tap') moveInput.mode = 'vector';
+      else moveInput.mode = 'dragworld';
+    }
+
+
+    function readHatAxis(value) {
+      // HORI Fighting Stick mini の AX9 実測値に合わせた専用マップ。
+      // 実測：
+      // 上=-1.0 / 右上=-0.71429 / 右=-0.42857 / 右下=-0.14286
+      // 下=0.14286 / 左下=0.42857 / 左=0.71429 / 左上=1.0 / 中立=3.28571
+      if (value === undefined || value === null || Number.isNaN(value)) return { x: 0, y: 0, name: 'none', raw: value };
+
+      const DIAG = Math.SQRT1_2;
+      const directions = [
+        { v: 3.28571, x: 0,     y: 0,     name: 'CENTER'    },
+        { v: -1.00000, x: 0,     y: -1,    name: 'UP'        },
+        { v: -0.71429, x: DIAG,  y: -DIAG, name: 'RIGHT_UP'  },
+        { v: -0.42857, x: 1,     y: 0,     name: 'RIGHT'     },
+        { v: -0.14286, x: DIAG,  y: DIAG,  name: 'RIGHT_DOWN'},
+        { v: 0.14286,  x: 0,     y: 1,     name: 'DOWN'      },
+        { v: 0.42857,  x: -DIAG, y: DIAG,  name: 'LEFT_DOWN' },
+        { v: 0.71429,  x: -1,    y: 0,     name: 'LEFT'      },
+        { v: 1.00000,  x: -DIAG, y: -DIAG, name: 'LEFT_UP'   }
+      ];
+
+      let best = directions[0];
+      let bestDiff = Infinity;
+      for (const d of directions) {
+        const diff = Math.abs(value - d.v);
+        if (diff < bestDiff) {
+          best = d;
+          bestDiff = diff;
+        }
+      }
+
+      // 中立値はかなり離れているので広め。それ以外は実測値に近い場合だけ採用。
+      if (best.name === 'CENTER' && bestDiff < 0.25) return { x: 0, y: 0, name: best.name, raw: value };
+      if (bestDiff < 0.09) return { x: best.x, y: best.y, name: best.name, raw: value };
+
+      return { x: 0, y: 0, name: '?', raw: value };
+    }
+
+    function gamepadButtonValue(gp, index) {
+      const b = gp && gp.buttons ? gp.buttons[index] : null;
+      if (!b) return 0;
+      return typeof b.value === 'number' ? b.value : (b.pressed ? 1 : 0);
+    }
+
+    function clampZoom(v) {
+      return Math.max(MANUAL_ZOOM.min, Math.min(maxAutoZoom(), v));
+    }
+
+    function updateManualZoomFromTriggers(gp) {
+      const left = gamepadButtonValue(gp, GAMEPAD.leftTrigger);
+      const right = gamepadButtonValue(gp, GAMEPAD.rightTrigger);
+      manualZoomState.left = left;
+      manualZoomState.right = right;
+
+      const input = right - left;
+      if (Math.abs(input) > MANUAL_ZOOM.triggerDead) {
+        if (manualZoomState.value == null) manualZoomState.value = cameraScale;
+        manualZoomState.value = clampZoom(manualZoomState.value + input * MANUAL_ZOOM.speed);
+        manualZoomState.active = true;
+        manualZoomState.hold = MANUAL_ZOOM.activeHoldFrames;
+      }
+    }
+
+    function isZoomCombatUrgent() {
+      // 手動ズーム中でも、豆粒事故だけは避けるための最低限の危険判定。
+      if (enemyBullets.length > 0 || bullets.length > 0 || bombs.length > 0) return true;
+
+      for (const e of enemies) {
+        if (e.state === 'gone') continue;
+        const d = Math.hypot(e.x - player.x, e.y - player.y);
+        if (e.state === 'dive' && d < 720) return true;
+        if ((e.state === 'active' || e.state === 'sleep') && d < 360) return true;
+      }
+      return false;
+    }
+
+    function applyManualZoomControl(autoZoomValue) {
+      const danger = isZoomCombatUrgent();
+
+      if (manualZoomState.hold > 0) {
+        manualZoomState.hold--;
+        manualZoomState.active = true;
+      } else if (manualZoomState.active && manualZoomState.value != null) {
+        // トリガーを離したら、手動値をゆっくり自動ズームへ戻す。
+        manualZoomState.value += (autoZoomValue - manualZoomState.value) * MANUAL_ZOOM.releaseBlend;
+        if (Math.abs(manualZoomState.value - autoZoomValue) < 0.025) {
+          manualZoomState.active = false;
+          manualZoomState.value = null;
+        }
+      }
+
+      if (!manualZoomState.active || manualZoomState.value == null) {
+        return autoZoomValue;
+      }
+
+      let z = clampZoom(manualZoomState.value);
+
+      // 戦闘時は最低1.0倍まで戻す。
+      // ただし、手動で1.0倍以上に寄せているなら、その倍率を維持する。
+      if (danger) z = Math.max(z, MANUAL_ZOOM.combatMinimum);
+      return z;
+    }
+
+    function pollGamepad() {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = Array.from(pads).find(p => p && p.connected);
+
+      if (!gp) {
+        gamepadState.active = false;
+        gamepadState.name = '';
+        gamepadState.dx = 0;
+        gamepadState.dy = 0;
+        gamepadState.power = 0;
+        manualZoomState.left = 0;
+        manualZoomState.right = 0;
+        return;
+      }
+
+      gamepadState.active = true;
+      gamepadState.name = gp.id || 'GAMEPAD';
+      updateManualZoomFromTriggers(gp);
+
+      // ボタン操作。押した瞬間だけ発火させる。
+      if (buttonJustPressed(gp, GAMEPAD.shotButton)) shoot();
+      if (buttonJustPressed(gp, GAMEPAD.bombButton)) throwBomb();
+      if (buttonJustPressed(gp, GAMEPAD.boostButton)) {
+        boostToward(player.x + gamepadState.dx * 140, player.y + gamepadState.dy * 140);
+      }
+      if (buttonJustPressed(gp, GAMEPAD.modeButton)) cycleMoveMode();
+
+      // 方向入力。
+      // 1) 通常のアナログ軸 axes[0]/axes[1]
+      // 2) 標準D-padボタン 12-15
+      // 3) HORIなどのHAT軸 axes[9]
+      let ax = gp.axes[0] || 0;
+      let ay = gp.axes[1] || 0;
+
+      const dpadX = (buttonPressed(gp, 15) ? 1 : 0) - (buttonPressed(gp, 14) ? 1 : 0);
+      const dpadY = (buttonPressed(gp, 13) ? 1 : 0) - (buttonPressed(gp, 12) ? 1 : 0);
+      const hat = readHatAxis(gp.axes[9]);
+
+      if (Math.abs(ax) < GAMEPAD.deadZone && Math.abs(ay) < GAMEPAD.deadZone) {
+        if (dpadX || dpadY) {
+          ax = dpadX;
+          ay = dpadY;
+        } else if (hat.x || hat.y) {
+          ax = hat.x;
+          ay = hat.y;
+        }
+      }
+
+      const mag = Math.hypot(ax, ay);
+      if (mag > GAMEPAD.deadZone) {
+        const ux = ax / mag;
+        const uy = ay / mag;
+        gamepadState.dx = ux;
+        gamepadState.dy = uy;
+        gamepadState.power = Math.min(1, mag);
+        gamepadState.hatName = hat.name || '';
+        gamepadState.hatRaw = hat.raw;
+      } else {
+        gamepadState.dx = 0;
+        gamepadState.dy = 0;
+        gamepadState.power = 0;
+        gamepadState.hatName = hat.name || '';
+        gamepadState.hatRaw = hat.raw;
+      }
+
+      gamepadState.prevButtons = gp.buttons.map(b => !!b.pressed);
+    }
+
+    window.addEventListener('gamepadconnected', e => {
+      gamepadState.name = e.gamepad.id || 'GAMEPAD';
+    });
+
+    window.addEventListener('gamepaddisconnected', () => {
+      gamepadState.name = '';
+      gamepadState.active = false;
+    });
+
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Space') shoot();
+      if (e.code === 'KeyB') throwBomb();
+      if (e.code === 'KeyM') cycleMoveMode();
+      if (e.code === 'KeyZ') cycleZoom();
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') boostToward(player.x + moveInput.dx * 120, player.y + moveInput.dy * 120);
+      const step = 0.8;
+      if (e.code === 'ArrowLeft') player.vx -= step;
+      if (e.code === 'ArrowRight') player.vx += step;
+      if (e.code === 'ArrowUp') player.vy -= step;
+      if (e.code === 'ArrowDown') player.vy += step;
+    });
+
+    function computeCombatDanger() {
+      if (!STABILIZER.enabled) return 0;
+
+      let danger = 0;
+
+      // 敵弾が近いほど危険度を上げる。
+      for (const b of enemyBullets) {
+        const d = Math.hypot(b.x - player.x, b.y - player.y);
+        if (d < STABILIZER.bulletRadius) {
+          danger = Math.max(danger, 1 - d / STABILIZER.bulletRadius);
+        }
+      }
+
+      // 飛行中の敵機が近いときも危険度を上げる。
+      for (const e of enemies) {
+        if (e.state !== 'dive') continue;
+        if (e.type === 'angry' && e.meteorInit && !e.meteorLaunched) continue; // 警告中メテオは除外
+        const d = Math.hypot(e.x - player.x, e.y - player.y);
+        if (d < STABILIZER.enemyRadius) {
+          danger = Math.max(danger, 1 - d / STABILIZER.enemyRadius);
+        }
+      }
+
+      return Math.max(0, Math.min(STABILIZER.maxDanger, danger));
+    }
+
+    // ===== HORI風 8方向デジタル入力 =====
+    // カーソルキーは「推進」ではなく、
+    // 倒した方向へ一定入力を与える。
+    const keyState = {
+      up: false,
+      down: false,
+      left: false,
+      right: false
+    };
+
+    addEventListener('keydown', e => {
+      const k = e.key;
+      if (k === 'ArrowUp') keyState.up = true;
+      if (k === 'ArrowDown') keyState.down = true;
+      if (k === 'ArrowLeft') keyState.left = true;
+      if (k === 'ArrowRight') keyState.right = true;
+    });
+
+    addEventListener('keyup', e => {
+      const k = e.key;
+      if (k === 'ArrowUp') keyState.up = false;
+      if (k === 'ArrowDown') keyState.down = false;
+      if (k === 'ArrowLeft') keyState.left = false;
+      if (k === 'ArrowRight') keyState.right = false;
+    });
+
+    const keyboardStick = {
+      active: false,
+      dx: 0,
+      dy: 0,
+      power: 0
+    };
+
+    const mobileStick = {
+      active: false,
+      pointerId: null,
+      cx: 0,
+      cy: 0,
+      knobX: 0,
+      knobY: 0,
+      dx: 0,
+      dy: 0,
+      power: 0,
+      radius: 40,
+      responseBoost: 1.28,
+      accelBoost: 1.05
+    };
+
+    function mobileStickCenter() {
+      return {
+        x: W * 0.22,
+        y: battleH + panelH * 0.56
+      };
+    }
+
+    function setMobileStickFromPointer(x, y) {
+      const c = mobileStickCenter();
+      mobileStick.cx = c.x;
+      mobileStick.cy = c.y;
+
+      const rawX = x - c.x;
+      const rawY = y - c.y;
+      const dist = Math.hypot(rawX, rawY);
+      const dead = 6;
+      const r = mobileStick.radius;
+
+      if (dist < dead) {
+        mobileStick.dx = 0;
+        mobileStick.dy = 0;
+        mobileStick.power = 0;
+        mobileStick.knobX = c.x;
+        mobileStick.knobY = c.y;
+        return;
+      }
+
+      const clamped = Math.min(dist, r);
+      mobileStick.dx = rawX / dist;
+      mobileStick.dy = rawY / dist;
+
+      // Xboxコントローラーに近い反応へ。
+      // 少し倒しただけでも十分推力が出るように、入力カーブを持ち上げる。
+      const linearPower = Math.min(1, (clamped - dead) / (r - dead));
+      mobileStick.power = Math.min(1, Math.pow(linearPower, 0.90) * mobileStick.responseBoost);
+
+      mobileStick.knobX = c.x + mobileStick.dx * clamped;
+      mobileStick.knobY = c.y + mobileStick.dy * clamped;
+    }
+
+    function updateKeyboardMove() {
+      let x = 0;
+      let y = 0;
+
+      if (keyState.left) x -= 1;
+      if (keyState.right) x += 1;
+      if (keyState.up) y -= 1;
+      if (keyState.down) y += 1;
+
+      // 斜め移動を正規化
+      const len = Math.hypot(x, y);
+      if (len > 0) {
+        x /= len;
+        y /= len;
+        keyboardStick.active = true;
+        keyboardStick.dx = x;
+        keyboardStick.dy = y;
+        keyboardStick.power = 1.0;
+      } else {
+        keyboardStick.active = false;
+        keyboardStick.dx = 0;
+        keyboardStick.dy = 0;
+        keyboardStick.power = 0;
+      }
+    }
+
+    function updateMovementInput() {
+      pollGamepad();
+
+      if (moveInput.mode === 'dragworld') {
+        player.vx *= MOVE.friction;
+        player.vy *= MOVE.friction;
+      } else if (moveInput.mode === 'tap') {
+        const dx = moveInput.targetX - player.x;
+        const dy = moveInput.targetY - player.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 4) {
+          const ux = dx / dist;
+          const uy = dy / dist;
+          const power = Math.min(1, dist / 180);
+          const thrust = MOVE.accel * (0.25 + power * 0.75);
+          player.vx += ux * thrust;
+          player.vy += uy * thrust;
+          player.vx *= MOVE.activeFriction;
+          player.vy *= MOVE.activeFriction;
+          moveInput.dx = ux;
+          moveInput.dy = uy;
+          moveInput.power = power;
+        } else {
+          player.vx *= MOVE.friction;
+          player.vy *= MOVE.friction;
+        }
+      } else if (moveInput.mode === 'vector') {
+        if (moveInput.active && moveInput.power > 0) {
+          const thrust = MOVE.accel * moveInput.power;
+          player.vx += moveInput.dx * thrust;
+          player.vy += moveInput.dy * thrust;
+          player.vx *= MOVE.activeFriction;
+          player.vy *= MOVE.activeFriction;
+        } else {
+          player.vx *= MOVE.friction;
+          player.vy *= MOVE.friction;
+        }
+      }
+
+      // ゲームパッド入力は、現在のタッチ操作モードに重ねて使える。
+      // Fighting Stick のようなデジタル方向入力でも、軽い慣性つきで動く。
+      if (gamepadState.active && gamepadState.power > 0) {
+        const thrust = GAMEPAD.accel * (0.35 + gamepadState.power * 0.65);
+        player.vx += gamepadState.dx * thrust;
+        player.vy += gamepadState.dy * thrust;
+        player.vx *= MOVE.activeFriction;
+        player.vy *= MOVE.activeFriction;
+        moveInput.dx = gamepadState.dx;
+        moveInput.dy = gamepadState.dy;
+        moveInput.power = gamepadState.power;
+      }
+
+      // キーボードもHORIジョイスティックと同じ「デジタル8方向スティック」として扱う。
+      if (keyboardStick.active && keyboardStick.power > 0) {
+        const thrust = GAMEPAD.accel * (0.35 + keyboardStick.power * 0.65);
+        player.vx += keyboardStick.dx * thrust;
+        player.vy += keyboardStick.dy * thrust;
+        player.vx *= MOVE.activeFriction;
+        player.vy *= MOVE.activeFriction;
+        moveInput.dx = keyboardStick.dx;
+        moveInput.dy = keyboardStick.dy;
+        moveInput.power = keyboardStick.power;
+      }
+
+      // スマホ仮想スティック。
+      // Xbox感を保ちつつ、スマホだけ少し俊敏にする。
+      if (mobileStick.active && mobileStick.power > 0) {
+        const thrust = GAMEPAD.accel * mobileStick.accelBoost * (0.35 + mobileStick.power * 0.65);
+        player.vx += mobileStick.dx * thrust;
+        player.vy += mobileStick.dy * thrust;
+
+        // 親指操作では、少しだけ姿勢制御を強めて小回りを良くする。
+        player.vx *= 0.988;
+        player.vy *= 0.988;
+
+        moveInput.dx = mobileStick.dx;
+        moveInput.dy = mobileStick.dy;
+        moveInput.power = mobileStick.power;
+      }
+    }
+
+    function isClassicScrambleMode() {
+      let alive = 0;
+      for (const e of enemies) {
+        if (e.state === 'gone') continue;
+        if (!isClassicEnemy(e)) continue;
+
+        // スクランブル判定では護衛を数えない。
+        // 編隊長の護衛補充で残存数が増え、スクランブルが解除されるのを防ぐ。
+        if (e.role === 'guard') continue;
+
+        alive++;
+      }
+      return alive > 0 && alive <= SCRAMBLE.threshold;
+    }
+
+    function isScrambleMode(e = null) {
+      // ここが今回の要点。
+      // スクランブルかどうかは全体ではなく、所属編隊ごとに決める。
+      // これで「小隊は散るが、大型編隊は美しく隊列へ戻る」が両立する。
+      if (e && e.squadronId != null) {
+        const s = getSquadronById(e.squadronId);
+        return isSquadronScramble(s);
+      }
+
+      // クラシック編隊だけは従来の残数判定を残す。
+      return isClassicScrambleMode();
+    }
+
+    function countActiveDivers() {
+      let count = 0;
+      for (const e of enemies) {
+        if (e.state === 'dive') count++;
+      }
+      return count;
+    }
+
+    function spawnReinforcementGuard(commander, offsetX, offsetY) {
+      const g = {
+        homeX: commander.homeX + offsetX,
+        homeY: commander.homeY + offsetY,
+        x: commander.x + offsetX,
+        y: commander.y + offsetY,
+        r: 9,
+        state: 'active',
+        phase: Math.random() * Math.PI * 2,
+        hp: 1,
+        role: 'guard',
+        commanderId: null,
+        guardingCommanderId: commander.commanderId,
+        squadronId: commander.squadronId || null,
+        alert: 1,
+        diveT: 0,
+        diveDelay: 0,
+        type: 'guard',
+        rediveMax: 1,
+        rediveCount: 0,
+        evadeCharges: 999,
+        evadeCooldown: 0,
+        evadeOffsetX: 0,
+        evadeOffsetY: 0,
+        impactWarned: false,
+        impactWarningLife: 0,
+        reinforcement: true,
+        warpInLife: 42
+      };
+      enemies.push(g);
+      return g;
+    }
+
+    function commanderHasGuard(commander) {
+      if (!commander || !commander.commanderId) return false;
+      return enemies.some(e =>
+        e.guardingCommanderId === commander.commanderId &&
+        e.state !== 'gone'
+      );
+    }
+
+    function getFormationCenter() {
+      const formationEnemies = enemies.filter(e =>
+        e.state === 'sleep' || e.state === 'active'
+      );
+
+      if (formationEnemies.length === 0) return null;
+
+      let sx = 0;
+      let sy = 0;
+
+      for (const e of formationEnemies) {
+        sx += e.x;
+        sy += e.y;
+      }
+
+      return {
+        x: sx / formationEnemies.length,
+        y: sy / formationEnemies.length
+      };
+    }
+
+    function formationOffscreenInfo() {
+      const fc = getFormationCenter();
+      if (!fc) return null;
+
+      const sx = (fc.x - player.x) * cameraScale + W / 2;
+      const sy = (fc.y - player.y) * cameraScale + battleH / 2;
+
+      const margin = 80;
+
+      const offscreen =
+        sx < margin || sx > W - margin ||
+        sy < margin || sy > battleH - margin;
+
+      if (!offscreen) return null;
+
+      return {
+        screenX: sx,
+        screenY: sy,
+        dx: sx - W / 2,
+        dy: sy - battleH / 2
+      };
+    }
+
+    function update() {
+      time++;
+      updateSquadrons();
+      updateSquadronBattleModes();
+      let autoZoomValue = autoZoom ? computeAutoZoom() : ZOOM_LEVELS[zoomIndex];
+      autoZoomValue = applyIntroZoomOutSuppression(autoZoomValue);
+      let baseZoom = applyManualZoomControl(autoZoomValue);
+
+      // ズーム不感帯。
+      // 隊列フィット計算の微細な変動で画面が脈動しないよう、
+      // 小さなズーム差は無視して現在の目標倍率を維持する。
+      if (Math.abs(baseZoom - targetScale) < 0.08) {
+        baseZoom = targetScale;
+      }
+
+      // ズーム変化速度を非対称にする。
+      // 接近戦へ寄るズームインは少し速く、隊列を収めるためのズームアウトはゆっくり。
+      // これで、敵が通り過ぎた直後の過剰な脈動を抑える。
+      const reveal = getUniverseReveal();
+      const zoomingIn = baseZoom > targetScale;
+      const zoomOutFollow = reveal >= 0.999
+        ? Math.max(0.024, SETTINGS.zoomFollow * 0.62)  // 開示後はちゃんと広域へ戻る
+        : Math.max(0.004, SETTINGS.zoomFollow * 0.16); // 開示中はゆっくり広がる
+      const targetFollow = zoomingIn
+        ? Math.max(0.135, SETTINGS.zoomFollow * 2.25)
+        : zoomOutFollow;
+      targetScale += (baseZoom - targetScale) * targetFollow;
+
+      const cameraFollow = targetScale > cameraScale ? 0.220 : (reveal >= 0.999 ? 0.055 : 0.030);
+      cameraScale += (targetScale - cameraScale) * cameraFollow;
+
+      player.shotCooldown = Math.max(0, player.shotCooldown - 1);
+      player.bombCooldown = Math.max(0, player.bombCooldown - 1);
+      player.boostCooldown = Math.max(0, player.boostCooldown - 1);
+      player.boosting = Math.max(0, player.boosting - 1);
+      player.bumpCooldown = Math.max(0, (player.bumpCooldown || 0) - 1);
+      player.bumpInvul = Math.max(0, (player.bumpInvul || 0) - 1);
+      player.bumpFlash = Math.max(0, (player.bumpFlash || 0) - 1);
+
+      // キーボードはHORI風の8方向デジタル入力。
+      updateKeyboardMove();
+
+      updateMovementInput();
+
+      const speed = Math.hypot(player.vx, player.vy);
+      // スマホでは少しだけ最高速を下げ、編隊近接時の事故を減らす。
+      const maxSpeedNow = isTouchLayout() ? MOVE.maxSpeed * SETTINGS.mobileMaxSpeedScale : MOVE.maxSpeed;
+      if (speed > maxSpeedNow) {
+        player.vx = player.vx / speed * maxSpeedNow;
+        player.vy = player.vy / speed * maxSpeedNow;
+      }
+
+      // スマホ：編隊近接時は少し姿勢制御を強める。
+      // 下から接近したときの「突っ込み事故」を減らす。
+      if (isTouchLayout()) {
+        let nearestFormation = Infinity;
+
+        for (const e of enemies) {
+          if (e.state !== 'sleep' && e.state !== 'active') continue;
+          const d = Math.hypot(e.x - player.x, e.y - player.y);
+          if (d < nearestFormation) nearestFormation = d;
+        }
+
+        if (nearestFormation < 170) {
+          player.vx *= 0.978;
+          player.vy *= 0.978;
+        }
+      }
+
+      // Combat Stabilizer:
+      // 危険が近いときだけ速度を少し減衰し、弾幕や接近機の間で小回りを利かせる。
+      // 宇宙の法則ではなく、機体の姿勢制御AIとして扱う。
+      const danger = computeCombatDanger();
+      if (danger > 0) {
+        const damping = 1 - STABILIZER.extraDamping * danger;
+        player.vx *= damping;
+        player.vy *= damping;
+      }
+
+      shiftWorld(-player.vx, -player.vy);
+
+      const targetOffsetX = -player.vx * 4.2;
+      const targetOffsetY = -player.vy * 4.2;
+      player.displayOffsetX += (targetOffsetX - player.displayOffsetX) * MOVE.shipLag;
+      player.displayOffsetY += (targetOffsetY - player.displayOffsetY) * MOVE.shipLag;
+      player.displayOffsetX = Math.max(-MOVE.maxShipOffset, Math.min(MOVE.maxShipOffset, player.displayOffsetX));
+      player.displayOffsetY = Math.max(-MOVE.maxShipOffset, Math.min(MOVE.maxShipOffset, player.displayOffsetY));
+      player.x = playerBaseX() + player.displayOffsetX;
+      player.y = playerBaseY() + player.displayOffsetY;
+
+      handleDormantEnemyBumps();
+
+      bullets.forEach(b => { b.x += b.vx; b.y += b.vy; b.life--; });
+      enemyBullets.forEach(b => { b.x += b.vx; b.y += b.vy; b.life--; });
+      bombs.forEach(b => {
+        if (b.hold > 0) {
+          // 慣性滞留フェーズ。
+          // 自機周辺の空間に少しだけ置かれ、速度がじわっと抜ける。
+          b.hold--;
+          b.x += b.vx;
+          b.y += b.vy;
+          b.vx *= 0.90;
+          b.vy *= 0.90;
+
+          // 滞留が終わったら前方へ投げ出される。
+          if (b.hold <= 0) {
+            b.vx *= 0.35;
+            b.vy = BOMB_PHYSICS.forwardVy;
+          }
+        } else {
+          b.x += b.vx;
+          b.y += b.vy;
+          b.vy *= 0.996;
+        }
+        b.life--;
+      });
+
+      for (let i = bombs.length - 1; i >= 0; i--) {
+        // 画面外や寿命切れでは不発扱いで消える。
+        if (bombs[i].life <= 0 || bombs[i].y < -40 || bombs[i].x < -40 || bombs[i].x > W + 40) {
+          bombs.splice(i, 1);
+        }
+      }
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        if (bullets[i].life <= 0 || bullets[i].y < -20) bullets.splice(i, 1);
+      }
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const b = enemyBullets[i];
+        if (b.life <= 0 || b.x < -40 || b.x > W + 40 || b.y < -40 || b.y > battleH + 40) {
+          enemyBullets.splice(i, 1);
+        }
+      }
+
+      enemies.forEach((e, idx) => {
+        e.evadeCooldown = Math.max(0, (e.evadeCooldown || 0) - 1);
+        e.evadeFlash = Math.max(0, (e.evadeFlash || 0) - 1);
+        e.wakeFlash = Math.max(0, (e.wakeFlash || 0) - 1);
+        e.bumpLife = Math.max(0, (e.bumpLife || 0) - 1);
+        e.evadeOffsetX *= 0.94;
+        e.evadeOffsetY *= 0.94;
+
+        // 練度のある敵は、近づく通常弾を見切って隊列を割るように避ける。
+        // 連射で一瞬に削れないよう、回避後にはクールダウンを置く。
+        if (e.state === 'active' && e.evadeCooldown <= 0) {
+          for (const b of bullets) {
+            const approaching = b.vy < 0 && b.y > e.y;
+            const closeX = Math.abs(b.x - e.x) < 22;
+            const closeY = b.y - e.y < 66 && b.y - e.y > 0;
+            if (approaching && closeX && closeY) {
+              const side = e.x < W / 2 ? -1 : 1;
+              const dodgeDir = (b.x < e.x ? 1 : -1) || side;
+
+              // 見た目に分かるように、まず即座にスッと横へ動かす。
+              // その後、evadeOffsetでしばらく隊列が割れた状態を残す。
+              e.x += dodgeDir * 18;
+              e.y -= 3;
+              e.evadeOffsetX += dodgeDir * 64;
+              e.evadeOffsetY += -8;
+              // 回避回数制限はなくす。かわりにクールダウンだけで制御する。
+              // 弾速や位置関係によっては、避けようとしても当たる。
+              e.evadeCooldown = 52;
+              e.evadeFlash = 28;
+              for (let k = 0; k < 4; k++) {
+                particles.push({ x: e.x, y: e.y, vx: -dodgeDir * (0.8 + Math.random()*1.4), vy: (Math.random()-0.5)*1.2, life: 14, r: 1.2 });
+              }
+
+              // 周囲も少しだけ割れる。隊列が生きている感じを出す。
+              enemies.forEach(o => {
+                const d = Math.hypot(o.x - e.x, o.y - e.y);
+                if (o !== e && o.state === 'active' && d < 62) {
+                  o.x += dodgeDir * 5;
+                  o.evadeOffsetX += dodgeDir * 24;
+                  o.evadeOffsetY += 5;
+                }
+              });
+              break;
+            }
+          }
+        }
+
+        const nearPlayer = Math.hypot(player.x - e.x, player.y - e.y) < 100;
+        if (e.state === 'sleep' && nearPlayer) e.alert += 0.015;
+        if (e.alert > 1) e.state = 'active';
+
+        const formationShift = Math.sin(time * 0.025) * 28;
+
+        if (e.state === 'sleep') {
+          e.x += (e.homeX + Math.sin(time * 0.018 + e.phase) * 3 + e.evadeOffsetX - e.x) * 0.04;
+          e.y += (e.homeY + Math.cos(time * 0.015 + e.phase) * 2 + e.evadeOffsetY - e.y) * 0.04;
+        } else if (e.state === 'active') {
+          e.diveDelay--;
+
+          if (isScrambleMode(e)) {
+            // スクランブル中は隊列位置へ戻さない。
+            // 上方で軽く漂い、準備ができたら個別に再突入する。
+            e.x += Math.sin(time * 0.035 + e.phase) * 0.45;
+            e.y += Math.cos(time * 0.028 + e.phase) * 0.20;
+          } else {
+            e.x += (e.homeX + formationShift + e.evadeOffsetX - e.x) * 0.075;
+            e.y += (e.homeY + 15 + Math.sin(time * 0.018 + e.phase) * 4 + e.evadeOffsetY - e.y) * 0.075;
+          }
+
+          const scramble = isScrambleMode(e);
+          const scrambleCanLaunch = scramble && countActiveDivers() < SCRAMBLE.maxSimultaneousDivers;
+          const commanderAlive = enemies.some(o => o.role === 'commander' && o.state !== 'gone');
+          const guardHeldForCommander = !scramble && e.role === 'guard' && commanderAlive;
+          const introNoDive = time < CAMERA_DRAMA.introNoDiveFrames;
+          if (!introNoDive && !guardHeldForCommander && e.diveDelay <= 0 && ((scrambleCanLaunch && Math.random() < 0.55) || (!scramble && idx % 5 === Math.floor(time / 200) % 5))) {
+            e.state = 'dive';
+            e.diveT = 0;
+
+            // 突撃開始時にだけ軌道を決める。
+            // その後プレイヤーが動いても、この曲線は変えない。
+            const dir = (isScrambleMode(e) ? e.x : e.homeX) < W / 2 ? 1 : -1;
+            e.diveDir = dir;
+            e.diveStartX = e.x;
+            e.diveStartY = e.y;
+            // 最初の制御点はかなり外側。ここではまだプレイヤー前を横切らない。
+            // まず大きく外へ膨らみ、その後に一度だけ攻撃線へ入る。
+            if (e.type === 'purple') {
+              // 紫機：横へ大きく張り出す側面制圧コース。
+              e.diveControlX = e.x + dir * Math.min(W * SETTINGS.purpleSpread, 470);
+              e.diveControlY = battleH * 0.12;
+            } else if (e.type === 'commander' || e.type === 'guard') {
+              // 編隊長・護衛：あまり強すぎない、格のある大きめの弧。
+              e.diveControlX = e.x + dir * Math.min(W * 0.55, 260);
+              e.diveControlY = battleH * 0.16;
+            } else {
+              e.diveControlX = e.x + dir * Math.min(W * (isScrambleMode(e) ? 0.56 : 0.72), isScrambleMode(e) ? 260 : 320);
+              e.diveControlY = isScrambleMode(e) ? battleH * 0.12 : battleH * 0.18;
+            }
+
+            // 目標は自機そのものではなく、自機をかすめた先の「画面外ライン」。
+            // これで攻撃線を最後まで飛び切る。
+            // 通常機は、自機そのものではなく「射撃位置」を通る。
+            // 弾は別途、自機を狙って撃つので、軌道には少しばらつきを持たせる。
+            const passSide = (Math.random() < 0.5 ? -1 : 1);
+
+            // 通常機は自機に当たりに来るのではなく、
+            // 自機の「前」を明確に横切る射撃コースにする。
+            // これでプレイヤーは落ち着いて撃てるし、隊列離脱の美しさも見える。
+            let passX;
+            let passY;
+            if (e.type === 'purple') {
+              // 紫機は前方の横を大きく切る。正面維持を崩すための軌道。
+              passX = passSide * (150 + Math.random() * 95);
+              passY = -58 - Math.random() * 42;
+            } else if (e.type === 'commander' || e.type === 'guard') {
+              passX = passSide * (92 + Math.random() * 52);
+              passY = -68 - Math.random() * 30;
+            } else {
+              passX = passSide * (76 + Math.random() * 54);
+              passY = -74 - Math.random() * 34;
+            }
+            e.diveAimX = player.x + passX;
+            e.diveAimY = player.y + passY;
+
+            // インパクト型。
+            // 最初から警告するのではなく、外へ膨らんだ後に一度だけ軌道修正して、
+            // そのタイミングで IMPACT 表示を出す。
+            e.impactType = (e.type === 'purple' || e.type === 'commander' || e.type === 'guard') ? false : (Math.random() < 0.28);
+            e.impactAdjusted = false;
+            e.impactWarned = false;
+            e.impactWarningLife = 0;
+
+            // 下へ落とさず、横方向の画面外ラインへ抜ける。
+            // 純粋にベジェ曲線の形だけで飛ばす。
+            e.diveTargetX = dir > 0 ? W + 90 : -90;
+            e.diveTargetY = player.y + 8;
+            e.returnWait = 0;
+
+            // 飛行中に撃つタイミング。発射時点の自機位置へ向ける。
+            e.fireTimes = [70, 105, 138];
+            e.firedShots = 0;
+
+            // 間合いを取って下がる自機に対し、攻撃終了時に必要なら一度だけ再攻撃する。
+            e.rediveCount = 0;
+            e.rediveMax = isScrambleMode(e) ? SCRAMBLE.rediveMax : 1;
+
+            // 編隊長が出撃するときは、護衛を4〜5機つれた「インチキフォーメーション」で発進。
+            // 護衛が削られていても、隊列に護衛が1機でも残っていれば補充がワープインする。
+            if (e.role === 'commander' && !e.sortieGroupStarted) {
+              e.sortieGroupStarted = true;
+
+              const escortOffsets = [
+                { x: -42, y: 26 },
+                { x:  42, y: 26 },
+                { x: -22, y: 52 },
+                { x:  22, y: 52 },
+                { x:   0, y: 72 }
+              ];
+
+              let guards = enemies
+                .filter(g => g.role === 'guard' && (g.state === 'sleep' || g.state === 'active') && g.guardingCommanderId === e.commanderId)
+                .sort((a, b) => Math.abs(a.homeX - e.homeX) - Math.abs(b.homeX - e.homeX));
+
+              const hadAnyGuard = guards.length > 0;
+              const targetEscortCount = hadAnyGuard ? 5 : Math.min(2, guards.length);
+
+              // 1機でも護衛が残っていれば、足りない分を補充する。
+              if (hadAnyGuard) {
+                for (let gi = guards.length; gi < targetEscortCount; gi++) {
+                  const off = escortOffsets[gi] || { x: 0, y: 60 };
+                  guards.push(spawnReinforcementGuard(e, off.x, off.y));
+                }
+              }
+
+              guards = guards.slice(0, targetEscortCount);
+
+              guards.forEach((g, gi) => {
+                const off = escortOffsets[gi] || { x: (gi - 2) * 28, y: 58 };
+                g.state = 'dive';
+                g.diveT = 0;
+                g.sortieGroupStarted = true;
+                g.diveDir = e.diveDir;
+
+                // 同じ曲線を共有しつつ、相対位置を保つ。
+                g.diveStartX = e.diveStartX + off.x;
+                g.diveStartY = e.diveStartY + off.y;
+                g.diveControlX = e.diveControlX + off.x * 0.82;
+                g.diveControlY = e.diveControlY + off.y * 0.82;
+                g.diveAimX = e.diveAimX + off.x;
+                g.diveAimY = e.diveAimY + off.y;
+                g.diveTargetX = e.diveTargetX + off.x;
+                g.diveTargetY = e.diveTargetY + off.y;
+
+                g.impactType = false;
+                g.impactAdjusted = false;
+                g.impactWarned = false;
+                g.impactWarningLife = 0;
+                g.returnWait = 0;
+
+                // 護衛は控えめに撃つが、数で圧を出す。
+                g.fireTimes = gi < 2 ? [86, 128] : [110];
+                g.firedShots = 0;
+                g.rediveCount = 0;
+                g.rediveMax = 1;
+              });
+            }
+            e.coastVX = 0;
+            e.coastVY = 0;
+          }
+        } else if (e.state === 'dive') {
+          e.diveT++;
+          const t = e.diveT;
+
+          // ギャラクシアン風：周期的なサインではなく、1回だけの放物線的な攻撃軌道。
+          // 1) 隊列から外へ膨らむ
+          // 2) プレイヤーの前を横切る／当たりに来る
+          // 3) そのまま画面下へ抜ける
+          const dir = e.diveDir || (e.homeX < W / 2 ? 1 : -1);
+          // 赤(enemy.type==='angry')は「メテオ」型。
+          // 編隊機とは別に、強い推力で一直線気味に突っ込む。
+          if (e.type === 'angry') {
+            if (!e.meteorInit) {
+              e.meteorInit = true;
+
+              const dx = player.x - e.x;
+              const dy = player.y - e.y;
+              const d = Math.hypot(dx, dy) || 1;
+
+              // 初期照準のみ。途中追尾はしない。
+              e.meteorVX = dx / d * 12.8;
+              e.meteorVY = dy / d * 12.8;
+
+              // メテオ警告。実座標上に予測線を投影する。
+              // 警告中は予兆だけで、当たり判定・撃破判定は無効。
+              e.warningTimer = 84;
+              e.meteorLaunched = false;
+              meteorWarnings.push({
+                enemy: e,
+                x1: e.x,
+                y1: e.y,
+                x2: e.x + (dx / d) * 1200,
+                y2: e.y + (dy / d) * 1200,
+                life: 84
+              });
+            }
+
+            // 警告中は停止して予測線だけを表示。
+            // 飛び出した瞬間から当たり判定・撃破判定が有効になる。
+            if (e.warningTimer > 0) {
+              e.warningTimer--;
+            } else {
+              e.meteorLaunched = true;
+
+              // メテオは弾を撃たない。高速で一撃離脱する。
+              e.meteorVX *= 1.0008;
+              e.meteorVY *= 1.0008;
+              e.x += e.meteorVX;
+              e.y += e.meteorVY;
+            }
+
+            // 画面外へ抜けたら隊列には戻らず消える。
+            if (e.x < -180 || e.x > W + 180 || e.y < -180 || e.y > battleH + 180) {
+              e.state = 'gone';
+              e.meteorInit = false;
+              e.meteorLaunched = false;
+            }
+
+          } else {
+
+          const progress = Math.min(1, t / 230);
+          const ease = progress; // 通常機の突撃は等速寄りにして、狙いやすくする。
+
+          // インパクト型：
+          // 以前はここで diveAim をプレイヤー座標へ差し替えていたため、
+          // ベジェ曲線が途中で切り替わり「ワープ」したようなギクシャクが出ていた。
+          // いまは軌道変更はせず、警告UIだけ出す。
+          if (e.impactType && !e.impactAdjusted && progress > 0.30) {
+            e.impactAdjusted = true;
+            e.impactWarned = true;
+            e.impactWarningLife = 150;
+          }
+
+          let startX = e.diveStartX ?? e.homeX;
+          let startY = e.diveStartY ?? e.homeY + 15;
+          let controlX = e.diveControlX ?? e.homeX + dir * Math.min(W * 0.56, 240);
+          let controlY = e.diveControlY ?? battleH * 0.26;
+          let aimX = e.diveAimX ?? player.x + dir * 18;
+          let aimY = e.diveAimY ?? player.y + 36;
+          let targetX = e.diveTargetX ?? (dir > 0 ? W + 90 : -90);
+          let targetY = e.diveTargetY ?? player.y + 8;
+
+          const attackPointX = aimX;
+          const attackPointY = aimY;
+
+          // 通常機のみ：膨らんだ後、まだ自機が敵の前方にいるなら一度だけ曲線を作り直す。
+          // 下がりながら間合いを取るプレイに対して、敵がもう一度攻撃線を取り直す。
+          // 自機がまだ敵の進行方向の前方に残っているなら、再照準する。
+          // 通常機も1回だけ行う。精鋭機は2回まで。
+          const canRedive = false; // 再照準は攻撃終了ポイントでだけ判定する。
+          const playerStillAhead = player.y < e.y + 115 && player.y > e.y - 160;
+          const playerInLane = Math.abs(player.x - e.x) < 260;
+          if (canRedive && playerStillAhead && playerInLane) {
+            e.rediveCount = (e.rediveCount || 0) + 1;
+            e.diveT = 0;
+
+            const side2 = player.x < e.x ? -1 : 1;
+            e.diveDir = side2;
+            e.diveStartX = e.x;
+            e.diveStartY = e.y;
+            if (e.type === 'purple') {
+              e.diveControlX = e.x + side2 * Math.min(W * 0.62, 330);
+              e.diveControlY = e.y - 98;
+            } else {
+              e.diveControlX = e.x + side2 * Math.min(W * (isScrambleMode(e) ? 0.36 : 0.44), isScrambleMode(e) ? 190 : 220);
+              e.diveControlY = e.y - (isScrambleMode(e) ? 96 : 74);
+            }
+
+            // 再照準しても基本は「前を横切る」。完全体当たりにはしない。
+            e.diveAimX = player.x + side2 * (58 + Math.random() * 42);
+            e.diveAimY = player.y - 48 - Math.random() * 26;
+            e.diveTargetX = side2 > 0 ? W + 140 : -140;
+            e.diveTargetY = player.y + 6;
+            return;
+          }
+
+          if (ease < 0.58) {
+            // 前半：隊列 → 外側へ膨らむ → 自機前を必ず横切る
+            const p = ease / 0.58;
+            const q = 1 - p;
+            e.x = q * q * startX
+                + 2 * q * p * controlX
+                + p * p * attackPointX;
+            e.y = q * q * startY
+                + 2 * q * p * controlY
+                + p * p * attackPointY;
+          } else {
+            // 後半：attackPoint以降は終端方向へ惰性で抜ける。
+            // 惰性は高速化するので、後退しながら追い越しにくい。
+            const p = (ease - 0.58) / 0.42;
+
+            const tangentX = attackPointX - controlX;
+            const tangentY = attackPointY - controlY;
+            const len = Math.hypot(tangentX, tangentY) || 1;
+            const ux = tangentX / len;
+            const uy = tangentY / len;
+
+            const scrambleSpeed = isScrambleMode(e) ? SCRAMBLE.speedBonus : 1.0;
+            const coastDistance = Math.min(W * 1.35, 620) * (p + p * p * 0.55) * scrambleSpeed;
+            e.x = attackPointX + ux * coastDistance;
+            e.y = attackPointY + uy * coastDistance;
+            e.coastVX = ux * (8 + p * 10);
+            e.coastVY = uy * (8 + p * 10);
+          }
+
+
+          // 突撃中にパラパラ撃つ。各弾は「発射時点の自機位置」へ直進する。
+          if (e.fireTimes && e.firedShots < e.fireTimes.length && t >= e.fireTimes[e.firedShots]) {
+            enemyShoot(e);
+            e.firedShots++;
+          }
+
+          // 自機付近を通過した後は警告を消す。
+          if (e.impactWarned) {
+            e.impactWarningLife = Math.max(0, (e.impactWarningLife || 0) - 1);
+            const passedAttackPoint = ease >= 0.62;
+            const passedPlayer = Math.hypot(e.x - player.x, e.y - player.y) > 90 && e.y > player.y - 30;
+            if (passedAttackPoint || passedPlayer || e.impactWarningLife <= 0) {
+              e.impactWarned = false;
+              e.impactWarningLife = 0;
+            }
+          }
+
+          if (progress >= 1 || e.x < -160 || e.x > W + 160 || e.y < -160 || e.y > battleH + 160) {
+            e.impactWarned = false;
+            e.impactWarningLife = 0;
+
+            // 攻撃終了ポイントで、まだ自機を追い越していなければ一度だけ流れで再攻撃。
+            // 画面座標では「敵が自機より上側に残っている」なら、まだ抜き切っていない扱い。
+            const hasNotPassedPlayer = e.y < player.y - 18;
+            const canEndRedive = !e.impactType && (e.rediveCount || 0) < (e.rediveMax || 1) && hasNotPassedPlayer;
+
+            if (canEndRedive) {
+              e.rediveCount = (e.rediveCount || 0) + 1;
+              e.diveT = 0;
+
+              const vx = e.coastVX || (dir * 8);
+              const vy = e.coastVY || 2;
+              const vlen = Math.hypot(vx, vy) || 1;
+              const ux = vx / vlen;
+              const uy = vy / vlen;
+              const side2 = player.x < e.x ? -1 : 1;
+
+              // 現在の流れを次の曲線の入口にする。
+              e.diveDir = side2;
+              e.diveStartX = e.x;
+              e.diveStartY = e.y;
+              e.diveControlX = e.x + ux * 150 + side2 * 55;
+              e.diveControlY = e.y + uy * 150 - 35;
+
+              // 再攻撃も基本は前を横切る。体当たりではない。
+              e.diveAimX = player.x + side2 * (62 + Math.random() * 42);
+              e.diveAimY = player.y - 52 - Math.random() * 28;
+              e.diveTargetX = side2 > 0 ? W + 160 : -160;
+              e.diveTargetY = player.y + 8;
+              e.fireTimes = [56, 92, 128];
+              e.firedShots = 0;
+
+            } else {
+              // スクランブルモード：
+              // 残存機が少なくなると、もう隊列を維持せず個別戦闘へ移行する。
+              if (isScrambleMode(e)) {
+
+                // 一部は逃走。
+                if (Math.random() < SCRAMBLE.escapeChance) {
+                  e.state = 'gone';
+
+                } else {
+                  // 上方から直接再出撃。
+                  e.state = 'active';
+                  e.diveDelay = 18 + Math.random() * 58;
+                  e.rediveMax = SCRAMBLE.rediveMax;
+
+                  const topWorldY = player.y + (0 - player.y) / Math.max(cameraScale, 0.1);
+                  e.x = Math.random() * W;
+                  e.y = topWorldY - 120 - Math.random() * 120;
+                }
+
+              } else {
+
+                beginAlienReturn(e, dir);
+              }
+            }
+          }
+
+          }
+        } else if (e.state === 'offscreen') {
+          e.offscreenT++;
+          // 画面外に出たまま待たせる。後で帰還ルーチンをここに接続する。
+          if (e.offscreenT > 240) {
+            e.y = -24;
+            e.x = e.homeX;
+            e.state = 'active';
+            e.diveDelay = 280 + Math.random() * 360;
+          }
+        } else if (e.state === 'return') {
+          // 帰還中でも、残存機が少なくなったらスクランブルへ切り替える。
+          // ただし、自機より上の航路編隊に属する敵は画面上を飛んで隊列へ戻す。
+          if (isScrambleMode(e) && e.returnMode !== 'visibleUpper') {
+            if (Math.random() < SCRAMBLE.escapeChance) {
+              e.state = 'gone';
+              return;
+            } else {
+              const topWorldY = player.y + (0 - player.y) / Math.max(cameraScale, 0.1);
+              e.state = 'active';
+              e.diveDelay = 18 + Math.random() * 52;
+              e.rediveMax = SCRAMBLE.rediveMax;
+              e.x = Math.random() * W;
+              e.y = topWorldY - 120 - Math.random() * 120;
+              return;
+            }
+          }
+
+          e.returnT++;
+
+          const duration = e.returnDuration || RETURN_TUNING.quietReturnFrames;
+          const t = Math.min(1, e.returnT / duration);
+          const ease = t * t * (3 - 2 * t);
+          const targetX = e.homeX + Math.sin(time * 0.025) * 28;
+          const targetY = e.homeY + 15;
+
+          if (e.returnMode === 'visibleUpper') {
+            const q = 1 - ease;
+            const controlX = (e.returnFromX + targetX) * 0.5 + (e.returnSide || 1) * 42;
+            const controlY = Math.min(e.returnFromY, targetY) - 90;
+            e.x = q * q * e.returnFromX + 2 * q * ease * controlX + ease * ease * targetX;
+            e.y = q * q * e.returnFromY + 2 * q * ease * controlY + ease * ease * targetY;
+          } else {
+            e.x = e.returnFromX + (targetX - e.returnFromX) * ease;
+            e.y = e.returnFromY + (targetY - e.returnFromY) * ease;
+          }
+
+          if (t >= 1) {
+            e.state = 'active';
+            e.returnMode = null;
+            e.sortieGroupStarted = false;
+            e.diveDelay = e.role === 'commander' ? 320 + Math.random() * 300 : 280 + Math.random() * 360;
+          }
+        }
+      });
+
+      cleanupDistantNonFocusAliens();
+
+      // bullet collisions
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        if (e.state === 'return' || e.state === 'offscreen' || e.state === 'gone') continue;
+
+        // メテオは警告中は無敵。飛び出してから撃破可能。
+        if (e.type === 'angry' && e.state === 'dive' && e.meteorInit && !e.meteorLaunched) continue;
+
+        let hit = false;
+        let hitByExplosion = false;
+
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const b = bullets[j];
+          if (Math.hypot(b.x - e.x, b.y - e.y) < e.r + b.r) {
+            bullets.splice(j, 1);
+            hit = true;
+
+            // ブラスターも眠り編隊を起こす。
+            // 1発で倒れない相手は即起床し、周囲もざわつく。
+            if (e.state === 'sleep') {
+              wakeDormantEnemy(e, 'blaster');
+              wakeDormantEnemiesNear(e.x, e.y, WAKEUP_WEAPONS.blasterRadius, 'blaster');
+            }
+
+            // ブラスター命中時は、次弾をすぐ撃てるようにする。
+            // 護衛をビシバシ剥がすための命中リズム補正。
+            player.shotCooldown = Math.min(player.shotCooldown, 3);
+
+            break;
+          }
+        }
+
+        for (const ex of explosions) {
+          if (Math.hypot(ex.x - e.x, ex.y - e.y) < ex.r + e.r) {
+            hit = true;
+            hitByExplosion = true;
+          }
+        }
+
+        // 護衛がいる間、編隊長は爆風では倒れない。
+        // ブラスターなら通るので、護衛を剥がす以外の選択肢も残る。
+        if (hitByExplosion && e.role === 'commander' && commanderHasGuard(e)) {
+          hit = false;
+          // シールド反応の小さな粒子だけ出す。
+          for (let k = 0; k < 3; k++) {
+            particles.push({ x: e.x, y: e.y, vx: (Math.random()-0.5)*2.2, vy: (Math.random()-0.5)*2.2, life: 14, r: 1.5 });
+          }
+        }
+
+        if (hit) {
+          e.hp = (e.hp || 1) - 1;
+        }
+
+        if (hit && e.hp <= 0) {
+          score += e.role === 'commander' ? 50 : (e.role === 'guard' ? 20 : 10);
+          for (let k = 0; k < 6; k++) particles.push({ x: e.x, y: e.y, vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4, life: 24, r: 2 });
+          // nearby enemies wake up or react.
+          // 飛行中の敵まで active に戻すと、突撃軌道が壊れて隊列へ直帰するため、
+          // sleep / active の敵だけに波及させる。
+          enemies.forEach(o => {
+            const d = Math.hypot(o.x - e.x, o.y - e.y);
+            if (d < 85) {
+              if (o.state === 'sleep') {
+                o.state = 'active';
+                o.alert = 1;
+              } else if (o.state === 'active') {
+                o.alert = 1;
+                // active中の赤だけ、ときどきメテオ突入。
+                // すでにdive中の敵には触らない。
+                if (o.type === 'angry' && Math.random() < 0.45) {
+                  o.state = 'dive';
+                  o.diveT = 0;
+                  o.meteorInit = false;
+                  o.meteorLaunched = false;
+                }
+              }
+            }
+          });
+          enemies.splice(i, 1);
+        }
+      }
+
+      explosions.forEach(ex => { ex.r += (ex.maxR - ex.r) * 0.18; ex.life--; });
+      particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.96; p.life--; });
+      meteorWarnings.forEach(w => { w.life--; });
+      for (let i = meteorWarnings.length - 1; i >= 0; i--) {
+        if (meteorWarnings[i].life <= 0) meteorWarnings.splice(i, 1);
+      }
+      for (let i = explosions.length - 1; i >= 0; i--) if (explosions[i].life <= 0) explosions.splice(i, 1);
+      for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) particles.splice(i, 1);
+
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        if (enemies[i].state === 'gone') enemies.splice(i, 1);
+      }
+
+      updateClassicEncounterLifecycle();
+    }
+
+    function draw() {
+      // 実画面全体をクリアしてから、仮想画面を実画面へ投影する。
+      resetScreenTransform();
+      ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+      ctx.fillStyle = '#05070d';
+      ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+      applyCanvasTransform();
+      ctx.clearRect(0, 0, W, H);
+
+      // 仮想ビューポート外を完全に切り捨てる。
+      // これをしないと、画面外へ飛び出した敵・軌跡・警告線が
+      // レターボックス部分にはみ出して描かれる。
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, W, H);
+      ctx.clip();
+
+      // camera centered on battle area
+      ctx.save();
+      const cx = player.x;
+      const cy = player.y;
+      ctx.translate(cx, cy);
+      ctx.scale(cameraScale, cameraScale);
+      ctx.translate(-cx, -cy);
+
+      drawStars();
+      drawSpaceMesh();
+      drawSquadronBlips();
+
+      // alert radius faint
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 100, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.restore();
+
+      // enemies
+      const enemyVisualScaleNow = cameraEnemyDrawScale();
+      enemies.forEach(e => {
+        ctx.save();
+        const awake = e.state !== 'sleep';
+        ctx.globalAlpha = awake ? 1 : 0.55;
+        ctx.translate(e.x, e.y);
+        ctx.scale(enemyVisualScaleNow, enemyVisualScaleNow);
+        ctx.beginPath();
+        ctx.arc(0, 0, e.r, 0, Math.PI * 2);
+        ctx.fillStyle = awake
+          ? (e.type === 'angry' ? '#ff3864'
+             : e.type === 'commander' ? '#facc15'
+             : e.type === 'guard' ? '#fb923c'
+             : (e.type === 'purple' ? '#a855f7' : '#ff6b6b'))
+          : (e.type === 'commander' ? '#a16207'
+             : e.type === 'guard' ? '#9a3412'
+             : e.type === 'purple' ? '#6d28d9' : '#64748b');
+        ctx.fill();
+
+        if (e.wakeFlash && e.wakeFlash > 0) {
+          const p = e.wakeFlash / 34;
+          ctx.strokeStyle = `rgba(250,204,21,${0.22 + p * 0.42})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, e.r + 7 + (1 - p) * 8, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (e.bumpLife && e.bumpLife > 0) {
+          const p = e.bumpLife / 20;
+          ctx.strokeStyle = `rgba(125,211,252,${0.18 + p * 0.36})`;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(0, 0, e.r + 10 + Math.sin(time * 0.5) * 2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // 回避時の斜線エフェクトは表示しない。
+        // エイリアンの回避アクションそのものに注目させるため、
+        // evadeFlash は内部タイマーとしてだけ使う。
+
+        if (e.type === 'purple') {
+          ctx.strokeStyle = awake ? 'rgba(216,180,254,0.90)' : 'rgba(167,139,250,0.55)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(-e.r - 3, 0);
+          ctx.lineTo(-e.r - 10, -3);
+          ctx.moveTo(e.r + 3, 0);
+          ctx.lineTo(e.r + 10, -3);
+          ctx.stroke();
+        }
+
+        if (e.type === 'commander') {
+          // 編隊長マーク。
+          // 円形リングは後光っぽく見えるのでやめ、左右の肩章・階級章風にする。
+          const guarded = commanderHasGuard(e);
+          ctx.strokeStyle = guarded ? 'rgba(251,191,36,0.90)' : 'rgba(251,191,36,0.45)';
+          ctx.lineWidth = 1.8;
+
+          // 左右の短い肩章ライン
+          ctx.beginPath();
+          ctx.moveTo(-e.r - 10, -4);
+          ctx.lineTo(-e.r - 3, -1);
+          ctx.lineTo(-e.r - 10, 3);
+          ctx.moveTo(e.r + 10, -4);
+          ctx.lineTo(e.r + 3, -1);
+          ctx.lineTo(e.r + 10, 3);
+          ctx.stroke();
+
+          // 上部の小さな階級章
+          ctx.fillStyle = guarded ? 'rgba(251,191,36,0.85)' : 'rgba(251,191,36,0.45)';
+          ctx.beginPath();
+          ctx.moveTo(0, -e.r - 8);
+          ctx.lineTo(-4, -e.r - 2);
+          ctx.lineTo(4, -e.r - 2);
+          ctx.closePath();
+          ctx.fill();
+
+          // 護衛ありのときは、シールドではなく短い水平ラインで「守られている」感を出す。
+          if (guarded) {
+            ctx.strokeStyle = 'rgba(253,224,71,0.35)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(-e.r - 13, e.r + 3);
+            ctx.lineTo(e.r + 13, e.r + 3);
+            ctx.stroke();
+          }
+        }
+
+        if (e.type === 'guard') {
+          ctx.strokeStyle = 'rgba(251,146,60,0.85)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(-e.r - 4, 4);
+          ctx.lineTo(e.r + 4, 4);
+          ctx.stroke();
+        }
+
+        if (e.warpInLife && e.warpInLife > 0) {
+          ctx.strokeStyle = 'rgba(147,197,253,0.75)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(0, 0, e.r + 10 + Math.sin(time * 0.35) * 3, 0, Math.PI * 2);
+          ctx.stroke();
+          e.warpInLife--;
+        }
+
+        if (!awake) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+          ctx.beginPath();
+          ctx.moveTo(-4, -2); ctx.lineTo(4, -2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(-3, -2, 2, 2);
+          ctx.fillRect(2, -2, 2, 2);
+        }
+        ctx.restore();
+      });
+
+      // impact-course target warnings
+      enemies.forEach(e => {
+        if (!e.impactWarned || e.impactWarningLife <= 0) return;
+        ctx.save();
+        const pulse = 0.55 + Math.sin(time * 0.35) * 0.22;
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#7CFF7C';
+        ctx.lineWidth = 2;
+        ctx.translate(e.x, e.y);
+        ctx.rotate(Math.PI / 4);
+        const size = (e.r * enemyVisualScaleNow) + 10;
+        ctx.strokeRect(-size, -size, size * 2, size * 2);
+        ctx.rotate(-Math.PI / 4);
+        ctx.fillStyle = '#7CFF7C';
+        ctx.font = '10px monospace';
+        ctx.fillText('IMPACT', size + 6, -size - 2);
+        ctx.restore();
+      });
+
+      // enemy bullets
+      enemyBullets.forEach(b => {
+        if (b.kind === 'needle') {
+          // 針弾：細く、下方向に伸びる伝統的な弾。
+          ctx.save();
+          ctx.strokeStyle = '#ffd1d1';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(b.x, b.y - 7);
+          ctx.lineTo(b.x, b.y + 7);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          // 狙撃弾：従来の丸い弾。
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffb4b4';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,80,80,0.6)';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r + 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      });
+
+      // bombs
+      bombs.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r + Math.sin(time * 0.4) * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = b.hold > 0 ? '#fde68a' : '#facc15';
+        ctx.fill();
+        ctx.strokeStyle = b.hold > 0 ? 'rgba(253,230,138,0.70)' : 'rgba(250,204,21,0.45)';
+        ctx.beginPath();
+        // 任意起爆可能な範囲を示す、控えめなパルス。
+        const pulseBase = b.hold > 0 ? 24 : 18;
+        ctx.arc(b.x, b.y, pulseBase + Math.sin(time * 0.12) * 4, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // bullets
+      bullets.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#9ae6ff';
+        ctx.fill();
+      });
+
+      // explosions
+      explosions.forEach(ex => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ex.life / 30);
+        ctx.beginPath();
+        ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI * 2);
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(ex.x, ex.y, ex.r * 0.58, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // particles
+      particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life / 30);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.restore();
+      });
+
+
+      // meteor warnings
+      meteorWarnings.forEach(w => {
+        ctx.save();
+        ctx.globalAlpha = 0.35 + Math.sin(time * 0.25) * 0.18;
+        ctx.strokeStyle = '#7CFF7C';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(w.x1, w.y1);
+        ctx.lineTo(w.x2, w.y2);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#7CFF7C';
+        ctx.font = '12px monospace';
+        ctx.fillText('METEOR WARNING', w.x1 + 12, w.y1 - 10);
+        ctx.restore();
+      });
+
+      drawMoveInputUI();
+      drawFormationArrow();
+      drawMotionGauges();
+
+      // player triangle
+      ctx.save();
+      if (player.bumpInvul > 0 && Math.floor(time / 3) % 2 === 0) {
+        ctx.globalAlpha = 0.58;
+      }
+      ctx.translate(player.x, player.y);
+      ctx.rotate(Math.atan2(player.vy, player.vx) * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(0, -15);
+      ctx.lineTo(11, 12);
+      ctx.lineTo(0, 6);
+      ctx.lineTo(-11, 12);
+      ctx.closePath();
+      ctx.fillStyle = player.boosting ? '#ffffff' : '#dbeafe';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(147,197,253,0.8)';
+      ctx.stroke();
+      if (player.boosting) {
+        ctx.beginPath();
+        ctx.moveTo(-6, 13); ctx.lineTo(0, 28 + Math.random()*10); ctx.lineTo(6, 13);
+        ctx.fillStyle = 'rgba(96,165,250,0.7)';
+        ctx.fill();
+      }
+      if (player.bumpFlash > 0) {
+        const p = player.bumpFlash / DORMANT_BUMP.invul;
+        ctx.strokeStyle = `rgba(191,219,254,${0.28 + p * 0.42})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 21 + (1 - p) * 10, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.restore();
+
+      drawNavigationRulers();
+      drawPanel();
+
+      // 仮想ビューポートのクリップを解除。
+      ctx.restore();
+    }
+
+    function drawStars() {
+      ctx.save();
+
+      // 星は「数」よりも奥行き差で宇宙感を出す。
+      // 180個程度ならCanvasでもかなり軽い。
+      for (let i = 0; i < 180; i++) {
+        const layer = 0.08 + (i % 7) * 0.055;
+        const speedTwinkle = 0.08 + (i % 5) * 0.018;
+        const x = ((i * 97 + time * speedTwinkle + starOffsetX * layer) % W + W) % W;
+        const y = ((i * 53 + time * (speedTwinkle + 0.04) + starOffsetY * (layer * 0.92)) % battleH + battleH) % battleH;
+        const size = 0.8 + (i % 3) * 0.45 + (layer > 0.32 ? 0.35 : 0);
+        ctx.globalAlpha = 0.08 + layer * 0.72;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, size, size);
+      }
+      ctx.restore();
+    }
+
+    function drawSpaceMesh() {
+      ctx.save();
+
+      // 実座標に同期した航法メッシュ。
+      // starOffsetX/Y は shiftWorld() で実際の世界移動量だけ更新される。
+      // この関数はカメラズームの内側で描かれるので、ズームインで粗く、ズームアウトで密になる。
+      const grid = NAV_GRID;
+      const major = NAV_GRID * NAV_MAJOR_EVERY;
+      const margin = Math.max(W, battleH) * 1.2;
+      const left = -margin;
+      const right = W + margin;
+      const top = -margin;
+      const bottom = battleH + margin;
+
+      const firstX = Math.floor((left - starOffsetX) / grid) * grid + starOffsetX;
+      const firstY = Math.floor((top - starOffsetY) / grid) * grid + starOffsetY;
+
+      ctx.lineWidth = 1;
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      for (let x = firstX; x <= right; x += grid) {
+        const worldLine = Math.round((x - starOffsetX) / grid);
+        const isMajor = Math.abs(worldLine) % NAV_MAJOR_EVERY === 0;
+        ctx.strokeStyle = isMajor ? 'rgba(125, 211, 252, 0.125)' : 'rgba(125, 211, 252, 0.050)';
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.stroke();
+      }
+
+      for (let y = firstY; y <= bottom; y += grid) {
+        const worldLine = Math.round((y - starOffsetY) / grid);
+        const isMajor = Math.abs(worldLine) % NAV_MAJOR_EVERY === 0;
+        ctx.strokeStyle = isMajor ? 'rgba(125, 211, 252, 0.125)' : 'rgba(125, 211, 252, 0.050)';
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+      }
+
+      // 斜め線は装飾ではなく、方位感を出すためにかなり薄く入れる。
+      const diag = major;
+      const firstDiag = Math.floor((left - starOffsetX) / diag) * diag + starOffsetX;
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.030)';
+      for (let x = firstDiag - battleH; x < right + battleH; x += diag) {
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x + battleH * 0.55, bottom);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawNavigationRulers() {
+      ctx.save();
+
+      // 画面端の固定目盛り。こちらはUIなのでズーム変換の外で描く。
+      // メッシュと同じワールド間隔を、現在ズーム後の画面ピクセル間隔に換算する。
+      const gridPx = NAV_GRID * cameraScale;
+      const majorPx = NAV_GRID * NAV_MAJOR_EVERY * cameraScale;
+      const safeGridPx = Math.max(28, gridPx);
+      const ox = ((starOffsetX * cameraScale) % safeGridPx + safeGridPx) % safeGridPx;
+      const oy = ((starOffsetY * cameraScale) % safeGridPx + safeGridPx) % safeGridPx;
+
+      ctx.strokeStyle = 'rgba(226, 232, 240, 0.28)';
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.58)';
+      ctx.lineWidth = 1;
+      ctx.font = '10px system-ui';
+      ctx.textBaseline = 'middle';
+
+      // 左右の縦目盛り
+      for (let y = -oy; y <= battleH; y += safeGridPx) {
+        const approxWorld = Math.round((y - starOffsetY * cameraScale) / (NAV_GRID * cameraScale));
+        const isMajor = Math.abs(approxWorld) % NAV_MAJOR_EVERY === 0;
+        const tick = isMajor ? 14 : 7;
+        ctx.globalAlpha = isMajor ? 0.78 : 0.42;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(tick, y);
+        ctx.moveTo(W, y);
+        ctx.lineTo(W - tick, y);
+        ctx.stroke();
+      }
+
+      // 上端の横目盛り。戦闘エリア内だけ。
+      for (let x = -ox; x <= W; x += safeGridPx) {
+        const approxWorld = Math.round((x - starOffsetX * cameraScale) / (NAV_GRID * cameraScale));
+        const isMajor = Math.abs(approxWorld) % NAV_MAJOR_EVERY === 0;
+        const tick = isMajor ? 14 : 7;
+        ctx.globalAlpha = isMajor ? 0.78 : 0.42;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, tick);
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.65)';
+      ctx.restore();
+    }
+
+    function drawMoveInputUI() {
+      const cx = playerBaseX();
+      const cy = playerBaseY();
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, MOVE.inputRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      if (moveInput.active || moveInput.mode === 'dragworld') {
+        if (moveInput.mode === 'vector' && moveInput.power > 0) {
+          const ix = cx + moveInput.dx * MOVE.inputRadius * moveInput.power;
+          const iy = cy + moveInput.dy * MOVE.inputRadius * moveInput.power;
+          ctx.strokeStyle = 'rgba(250,204,21,0.92)';
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ix, iy); ctx.stroke();
+        } else if (moveInput.mode === 'tap') {
+          ctx.strokeStyle = 'rgba(96,165,250,0.9)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(moveInput.targetX, moveInput.targetY, 16, 0, Math.PI * 2); ctx.stroke();
+        } else if (moveInput.mode === 'dragworld') {
+          const len = Math.min(56, Math.hypot(moveInput.dx, moveInput.dy));
+          if (len > 1) {
+            const a = Math.atan2(moveInput.dy, moveInput.dx);
+            ctx.strokeStyle = 'rgba(250,204,21,0.85)';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
+          }
+        }
+      }
+      if (gamepadState.active && gamepadState.power > 0) {
+        const len = 48 * gamepadState.power;
+        const a = Math.atan2(gamepadState.dy, gamepadState.dx);
+        ctx.strokeStyle = 'rgba(125,211,252,0.85)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+        ctx.stroke();
+      }
+
+      if (keyboardStick.active && keyboardStick.power > 0) {
+        const len = 48 * keyboardStick.power;
+        const a = Math.atan2(keyboardStick.dy, keyboardStick.dx);
+        ctx.strokeStyle = 'rgba(125,211,252,0.85)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+        ctx.stroke();
+      }
+
+      const next = nearestInactiveSquadron();
+      if (next && next.distance < 3200) {
+        const s = next.squadron;
+        const dx = s.x - player.x;
+        const dy = s.y - player.y;
+        const a = Math.atan2(dy, dx);
+        const labelX = W / 2 + Math.cos(a) * Math.min(W * 0.32, 150);
+        const labelY = 48 + Math.max(0, Math.sin(a)) * 20;
+
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = 'rgba(125,211,252,0.88)';
+        ctx.font = '11px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('NEXT ENCOUNTER ' + Math.round(next.distance), labelX, labelY);
+      }
+
+      ctx.restore();
+    }
+
+    function drawFormationArrow() {
+      // 索敵UI。
+      // ワールド内の物体ではなく、画面上のUIなのでズーム率に左右されない。
+      // ズームアウトしているときほど、むしろ大きく・見やすく表示する。
+      if (cameraScale > 0.96) return;
+
+      const info = formationOffscreenInfo();
+      if (!info) return; // 編隊が見えたら即消える
+
+      // 3.5秒周期で短くピコピコ。ただし低ズーム時は少し長めに表示。
+      const cycle = time % 210;
+      const visibleFrames = cameraScale < 0.45 ? 78 : 52;
+      if (cycle > visibleFrames) return;
+
+      const a = Math.atan2(info.dy, info.dx);
+
+      // 画面端に固定する。ズーム空間ではなくHUD空間。
+      const edgeMargin = cameraScale < 0.45 ? 38 : 26;
+      const cx = W / 2;
+      const cy = battleH / 2;
+
+      let px = cx + Math.cos(a) * W;
+      let py = cy + Math.sin(a) * battleH;
+
+      px = Math.max(edgeMargin, Math.min(W - edgeMargin, px));
+      py = Math.max(edgeMargin, Math.min(battleH - edgeMargin, py));
+
+      const pulse = 0.5 + 0.5 * Math.sin(time * 0.55);
+
+      // 低ズーム時ほど大きくする。
+      // 0.30付近では約2倍、0.70付近では少しだけ大きく。
+      const uiScale = cameraScale < 0.45 ? 2.15 : (cameraScale < 0.75 ? 1.55 : 1.15);
+
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(uiScale, uiScale);
+
+      ctx.fillStyle = 'rgba(125,211,252,' + (0.34 + pulse * 0.44).toFixed(2) + ')';
+      ctx.strokeStyle = 'rgba(125,211,252,' + (0.24 + pulse * 0.34).toFixed(2) + ')';
+      ctx.lineWidth = 1.4;
+
+      // 中心ピコ
+      ctx.beginPath();
+      ctx.arc(0, 0, 4.0 + pulse * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 方向側に点列。避ける対象ではなく索敵反応に見せる。
+      ctx.rotate(a);
+      for (let i = 1; i <= 4; i++) {
+        const alpha = Math.max(0.12, 0.58 - i * 0.10 + pulse * 0.24);
+        ctx.fillStyle = 'rgba(125,211,252,' + alpha.toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.arc(i * 8, 0, 2.4 - i * 0.20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 電波っぽい波紋
+      ctx.rotate(-a);
+      ctx.globalAlpha = 0.18 + pulse * 0.22;
+      ctx.beginPath();
+      ctx.arc(0, 0, 10 + pulse * 9, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 低ズーム時だけ、さらに外側の波紋を追加して「こっちだよ」感を出す。
+      if (cameraScale < 0.45) {
+        ctx.globalAlpha = 0.10 + pulse * 0.16;
+        ctx.beginPath();
+        ctx.arc(0, 0, 22 + pulse * 10, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawMotionGauges() {
+      // 航法目盛り風の縦ゲージ。
+      // G計のように機敏に動かすのではなく、宇宙船の移動に合わせて
+      // 目盛りがゆっくり流れる「航法計器」として見せる。
+      // 横ゲージは軽く見えすぎるため撤去。
+      ctx.save();
+
+      const speed = Math.hypot(player.vx, player.vy);
+      const flow = (starOffsetY * 0.035 + time * 0.18) % 22;
+      const sideFlow = (starOffsetX * 0.030) % 22;
+
+      const top = isTouchLayout() ? 34 : 58;
+      const bottom = isTouchLayout() ? battleH - 22 : H - 42;
+      const h = Math.max(120, bottom - top);
+
+      const alpha = isTouchLayout() ? 0.42 : 0.46;
+      const lineColor = 'rgba(125,211,252,' + alpha.toFixed(2) + ')';
+      const faintColor = 'rgba(125,211,252,' + (alpha * 0.42).toFixed(2) + ')';
+
+      const leftX = isTouchLayout() ? 16 : 24;
+      const rightX = isTouchLayout() ? W - 16 : W - 24;
+
+      function navStrip(x, sideSign) {
+        ctx.save();
+        ctx.globalAlpha = 1;
+
+        // 基準ライン
+        ctx.strokeStyle = faintColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.stroke();
+
+        // 流れる目盛り。縦移動と横移動の両方をほんの少し反映。
+        for (let y = top - 24 + flow; y < bottom + 24; y += 22) {
+          const normalized = (y - top) / h;
+          const centerFade = 1 - Math.abs(normalized - 0.5) * 0.75;
+          const a = Math.max(0.10, Math.min(alpha, alpha * centerFade));
+
+          const longTick = Math.round((y + sideFlow) / 66) % 3 === 0;
+          const len = longTick ? 15 : 8;
+
+          ctx.strokeStyle = 'rgba(125,211,252,' + a.toFixed(2) + ')';
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + sideSign * len, y);
+          ctx.stroke();
+        }
+
+        // 中央の基準マーカー。機体の現在姿勢の支点のように見せる。
+        const cy = top + h * 0.5;
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, cy);
+        ctx.lineTo(x + sideSign * 20, cy);
+        ctx.stroke();
+
+        // 速度があるときだけ、かすかな光点が流れる。
+        if (speed > 0.4) {
+          const beadY = top + ((time * (0.55 + speed * 0.08) + starOffsetY * 0.04) % h);
+          ctx.fillStyle = 'rgba(125,211,252,0.38)';
+          ctx.beginPath();
+          ctx.arc(x + sideSign * 13, beadY, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      navStrip(leftX, 1);
+      navStrip(rightX, -1);
+
+      ctx.restore();
+    }
+
+    function drawPanel() {
+      ctx.save();
+
+      if (!isTouchLayout()) {
+        // PC版：下部パネルなし。最低限のHUDだけ薄く表示。
+        // PC版HUD：シネマティックHUD
+        ctx.font = '12px system-ui';
+        ctx.textBaseline = 'top';
+
+        // --- 左上 ---
+        ctx.textAlign = 'left';
+
+        ctx.fillStyle = 'rgba(165,243,252,0.92)';
+        ctx.fillText('SCORE', 18, 14);
+
+        ctx.fillStyle = 'rgba(226,232,240,0.92)';
+        ctx.fillText(String(score), 82, 14);
+
+        ctx.fillStyle = 'rgba(165,243,252,0.72)';
+        ctx.fillText('|', 132, 14);
+
+        ctx.fillStyle = 'rgba(165,243,252,0.92)';
+        ctx.fillText('ZOOM', 156, 14);
+
+        ctx.fillStyle = 'rgba(226,232,240,0.92)';
+        ctx.fillText(cameraScale.toFixed(2), 218, 14);
+
+        if (manualZoomState.active && manualZoomState.value != null) {
+          ctx.fillStyle = 'rgba(251,191,36,0.92)';
+          ctx.fillText('MANUAL', 258, 14);
+        }
+
+        ctx.fillStyle = 'rgba(165,243,252,0.72)';
+        ctx.fillText('|', manualZoomState.active ? 328 : 286, 14);
+
+        const enemyLabelX = manualZoomState.active ? 354 : 312;
+        const enemyValueX = manualZoomState.active ? 430 : 388;
+        ctx.fillStyle = 'rgba(165,243,252,0.92)';
+        ctx.fillText('ENEMY', enemyLabelX, 14);
+
+        ctx.fillStyle = 'rgba(226,232,240,0.92)';
+        ctx.fillText(String(enemies.length), enemyValueX, 14);
+
+        // --- 右上 ---
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(226,232,240,0.72)';
+        // --- スクランブル表示 ---
+        if (anyScrambleMode()) {
+          ctx.textAlign = 'left';
+          ctx.fillStyle = 'rgba(252,165,165,0.96)';
+          ctx.fillText('SCRAMBLE ACE MODE.', 18, 40);
+        }
+
+        // --- 左下 POSITION ---
+        const panelY = H - 86;
+
+        ctx.strokeStyle = 'rgba(103,232,249,0.28)';
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+        ctx.moveTo(18, panelY);
+        ctx.lineTo(148, panelY);
+        ctx.lineTo(166, panelY + 16);
+        ctx.lineTo(166, panelY + 72);
+        ctx.lineTo(18, panelY + 72);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(103,232,249,0.92)';
+        ctx.fillText('POSITION', 30, panelY + 12);
+
+        ctx.fillStyle = 'rgba(226,232,240,0.82)';
+        ctx.fillText('X: ' + player.x.toFixed(2), 30, panelY + 38);
+        ctx.fillText('Y: ' + player.y.toFixed(2), 30, panelY + 56);
+
+        // --- 右下 STATUS ---
+        const rx = W - 166;
+
+        ctx.beginPath();
+        ctx.moveTo(rx, panelY + 16);
+        ctx.lineTo(rx + 18, panelY);
+        ctx.lineTo(rx + 148, panelY);
+        ctx.lineTo(rx + 148, panelY + 72);
+        ctx.lineTo(rx, panelY + 72);
+        ctx.closePath();
+        ctx.stroke();
+
+        const speed = Math.hypot(player.vx, player.vy);
+
+        ctx.fillStyle = 'rgba(103,232,249,0.92)';
+        ctx.fillText('SPEED', rx + 18, panelY + 12);
+
+        ctx.fillStyle = 'rgba(226,232,240,0.82)';
+        ctx.fillText(speed.toFixed(1), rx + 18, panelY + 38);
+
+        ctx.restore();
+        return;
+      }
+
+      ctx.fillStyle = 'rgba(5, 8, 16, 0.96)';
+      ctx.fillRect(0, battleH, W, panelH);
+      ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(0, battleH + 0.5);
+      ctx.lineTo(W, battleH + 0.5);
+      ctx.stroke();
+
+      // スマホ版HUDは整理してシンプルに。
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.font = '11px system-ui';
+
+      ctx.textAlign = 'left';
+      ctx.fillText('SCORE ' + score, 12, battleH + 24);
+
+      ctx.textAlign = 'center';
+      ctx.fillText('ZOOM ' + cameraScale.toFixed(2), W / 2, battleH + 24);
+
+      ctx.textAlign = 'right';
+      ctx.fillText('ENEMY ' + enemies.length, W - 12, battleH + 24);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.48)';
+      ctx.textAlign = 'center';
+      ctx.fillText('STABILIZER ' + (computeCombatDanger() > 0.02 ? 'ACTIVE' : 'STANDBY'), W / 2, battleH + 44);
+
+      if (anyScrambleMode()) {
+        ctx.fillStyle = '#fca5a5';
+        ctx.textAlign = 'right';
+        ctx.fillText('SCRAMBLE', W - 12, battleH + 44);
+      }
+
+      if (isTouchLayout()) {
+        const c = mobileStickCenter();
+        const r = mobileStick.radius;
+
+        ctx.save();
+        ctx.globalAlpha = 0.92;
+        ctx.strokeStyle = 'rgba(125,211,252,0.42)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(125,211,252,0.22)';
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r * 0.42, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const kx = mobileStick.active ? c.x + mobileStick.dx * r * mobileStick.power : c.x;
+        const ky = mobileStick.active ? c.y + mobileStick.dy * r * mobileStick.power : c.y;
+        ctx.fillStyle = mobileStick.active ? 'rgba(125,211,252,0.42)' : 'rgba(125,211,252,0.18)';
+        ctx.beginPath();
+        ctx.arc(kx, ky, 22, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (mobileStick.active && mobileStick.power > 0) {
+          ctx.strokeStyle = 'rgba(125,211,252,0.85)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(c.x, c.y);
+          ctx.lineTo(kx, ky);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(226,232,240,0.55)';
+        ctx.font = '11px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('MOVE', c.x, c.y + r + 18);
+        ctx.restore();
+      }
+
+      buttons.forEach((b, i) => {
+        const cooldown = b.label === 'SHOT' ? player.shotCooldown / 18 : b.label === 'BOMB' ? player.bombCooldown / 95 : player.boostCooldown / 120;
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, b.x, b.y, b.w, b.h, b.small ? 10 : 16);
+        ctx.fillStyle = b.down ? 'rgba(96,165,250,0.45)' : 'rgba(15,23,42,0.95)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(148,163,184,0.65)';
+        ctx.stroke();
+
+        if (cooldown > 0) {
+          ctx.beginPath();
+          roundRect(ctx, b.x, b.y + b.h * (1 - cooldown), b.w, b.h * cooldown, 16);
+          ctx.fillStyle = 'rgba(255,255,255,0.16)';
+          ctx.fill();
+        }
+
+        ctx.fillStyle = '#e5e7eb';
+        ctx.font = b.small ? 'bold 11px system-ui' : 'bold 14px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+    }
+
+    // 固定タイムステップ。
+    // 画面更新の速さや省電力状態に左右されず、ゲーム内時間を60fps基準で進める。
+    const FIXED_STEP = 1000 / 60;
+    let lastFrameTime = 0;
+    let accumulator = 0;
+
+    function loop(timestamp) {
+      if (!lastFrameTime) lastFrameTime = timestamp;
+      let frameTime = timestamp - lastFrameTime;
+      lastFrameTime = timestamp;
+
+      // タブ復帰時などに一気に進みすぎないよう上限を設ける。
+      frameTime = Math.min(frameTime, 100);
+      accumulator += frameTime;
+
+      while (accumulator >= FIXED_STEP) {
+        update();
+        accumulator -= FIXED_STEP;
+      }
+
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    init();
+  </script>
+</body>
+</html>
